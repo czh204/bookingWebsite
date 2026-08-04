@@ -12,7 +12,7 @@
         align-items: center;
         justify-content: center;
         padding: 4rem 1.5rem 8rem;
-        background: url('{{ asset('images/hero-planning.jpg') }}') center / cover no-repeat;
+        background: linear-gradient(135deg, #2a3a5c 0%, var(--navy) 55%, var(--navy-dark) 100%);
         color: #fff;
         text-align: center;
         overflow: hidden;
@@ -22,9 +22,25 @@
         content: "";
         position: absolute;
         inset: 0;
-        background: linear-gradient(180deg, rgba(20,30,50,.55) 0%, rgba(15,22,38,.75) 100%);
+        background: linear-gradient(180deg, rgba(20,30,50,.35) 0%, rgba(15,22,38,.6) 100%);
     }
  
+    .hero-placeholder-tag {
+        position: absolute;
+        z-index: 1;
+        bottom: 6.5rem;
+        right: 1.25rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        background: rgba(0,0,0,.35);
+        border: 1px solid rgba(255,255,255,.2);
+        border-radius: 999px;
+        padding: .3rem .8rem;
+        font-size: .7rem;
+        color: rgba(255,255,255,.75);
+    }
+
     .hero-content { position: relative; z-index: 1; max-width: 46rem; }
  
     .hero-badge {
@@ -77,6 +93,7 @@
  
     .search-tabs .nav-link {
         flex: 1;
+        width: 100%;
         text-align: center;
         border: none;
         border-radius: 0;
@@ -199,6 +216,25 @@
         background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.65) 100%);
         z-index: 0;
     }
+
+    /* Photo placeholders (no real destination photos yet) */
+    .destination-card.ph-1 { background-image: linear-gradient(135deg, #3b5b8f, #1e2a45); }
+    .destination-card.ph-2 { background-image: linear-gradient(135deg, #2f8f6e, #16532f); }
+    .destination-card.ph-3 { background-image: linear-gradient(135deg, #b3502f, #7a2e12); }
+    .destination-card.ph-4 { background-image: linear-gradient(135deg, #5a4a8f, #2c1f57); }
+    .destination-card.ph-5 { background-image: linear-gradient(135deg, #b7791f, #7a4e0f); }
+    .destination-card.ph-6 { background-image: linear-gradient(135deg, #2f7f8f, #163f57); }
+
+    .destination-photo-icon {
+        position: relative;
+        z-index: 0;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.2rem;
+        color: rgba(255,255,255,.35);
+    }
  
     .destination-badge, .destination-info {
         position: relative;
@@ -285,8 +321,9 @@
     <div class="hero-content">
         <span class="hero-badge"><i class="bi bi-stars"></i> AI-Powered Travel Planning</span>
         <h1 class="font-serif fw-bold">Your World, <span class="accent">Beautifully</span> Planned</h1>
-        <p class="lead-copy">Book flights, hotels, and experiences — then let our AI craft the perfect itinerary for your journey.</p>
+        <p class="lead-copy">Book flights, hotels, and experiences - or let our AI craft the perfect itinerary for your journey.</p>
     </div>
+    <span class="hero-placeholder-tag"><i class="bi bi-image"></i> Hero photo placeholder</span>
 </section>
  
 {{-- ================= SEARCH WIDGET ================= --}}
@@ -428,12 +465,12 @@
     </div>
  
     <div class="row g-3">
-        @foreach ($destinations as $destination)
+        @foreach ($destinations as $index => $destination)
             <div class="col-md-4">
                 <a href="{{ url('/destinations/' . \Illuminate\Support\Str::slug($destination['city'])) }}"
-                   class="destination-card"
-                   style="background-image: url('{{ asset('images/destinations/' . $destination['image']) }}');">
+                   class="destination-card ph-{{ ($index % 6) + 1 }}">
                     <span class="destination-badge">{{ $destination['badge'] }}</span>
+                    <i class="bi bi-image destination-photo-icon"></i>
                     <div class="destination-info">
                         <h4 class="font-serif">{{ $destination['city'] }}</h4>
                         <div class="country">{{ $destination['country'] }}</div>

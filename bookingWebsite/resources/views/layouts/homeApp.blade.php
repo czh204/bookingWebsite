@@ -101,8 +101,9 @@
             font-weight: 700;
         }
  
-        @stack('styles')
     </style>
+
+    @stack('styles')
 </head>
 <body>
  
