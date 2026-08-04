@@ -415,8 +415,8 @@
                                    class="form-control @error('phone', 'register') is-invalid @enderror"
                                    id="register-phone"
                                    name="phone"
-                                   placeholder="012XXXXXXX"
-                                   value="{{ old('email') }}"
+                                   placeholder="+6012xxxxxxx"
+                                   value="{{ old('phone') }}"
                                    required>
                             @error('phone', 'register')
                                 <div class="invalid-feedback">{{ $message }}</div>
