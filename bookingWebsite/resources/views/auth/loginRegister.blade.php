@@ -418,7 +418,7 @@
                                    placeholder="012XXXXXXX"
                                    value="{{ old('email') }}"
                                    required>
-                            @error('email', 'register')
+                            @error('phone', 'register')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
