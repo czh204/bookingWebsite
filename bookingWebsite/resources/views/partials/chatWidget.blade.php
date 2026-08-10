@@ -31,7 +31,7 @@
     <div class="chat-messages" id="chatMessages">
         <div class="chat-message chat-message-bot">
             <span class="chat-avatar"><i class="bi bi-stars"></i></span>
-            <div class="chat-bubble">Hello! I'm here to help with any questions about your bookings. Click a quick question or type below.</div>
+            <div class="chat-bubble">Hello! I'm here to help with any questions about your bookings. Click a quick question or type your prompt below.</div>
         </div>
     </div>
 
@@ -52,9 +52,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const form        = document.getElementById('chatForm');
     const input       = document.getElementById('chatInput');
     const quickBtns   = document.querySelectorAll('.chat-quick-btn');
-
+     //Hardcoded replies
     const cannedReplies = {
-        'How do I cancel my booking?': 'You can cancel a booking from My Trips — open the booking and select "Cancel Reservation". Refund eligibility depends on the fare rules.',
+        'How do I cancel my booking?': 'You can cancel a booking from My Trips - open the booking and select "Cancel Reservation". Refund eligibility depends on the fare rules.',
         'What is your refund policy?': 'Most bookings can be refunded in full within 24 hours of purchase, and partially refunded after that based on the fare type.',
         'How do I modify my reservation?': 'Go to My Trips, open the booking, and choose "Modify Reservation" to change dates, room type, or passenger details.',
         'What payment methods do you accept?': 'We accept all major credit/debit cards, PayPal, and popular e-wallets at checkout.'
