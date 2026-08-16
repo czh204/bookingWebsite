@@ -8,7 +8,7 @@ use Illuminate\Support\Collection;
 
 class HotelController extends Controller
 {
-    protected const PER_PAGE = 10;
+    protected const PER_PAGE = 5;
 
     public function index(Request $request)
     {

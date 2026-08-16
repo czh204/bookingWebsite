@@ -431,7 +431,7 @@
             </a>
         </div>
         <div class="col-6 col-lg-3">
-            <a href="{{ url('/hotels') }}" class="quick-link-card">
+            <a href="{{ route('hotels.index') }}" class="quick-link-card">
                 <div class="quick-link-icon icon-hotels"><i class="bi bi-building"></i></div>
                 <h3>Hotels</h3>
                 <p>2M+ properties</p>
