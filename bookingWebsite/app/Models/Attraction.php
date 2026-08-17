@@ -12,8 +12,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'city',
     'country',
     'location_label',
-    'rating',
-    'review_count',
     'duration_hours',
     'duration_label',
     'capacity',
@@ -30,7 +28,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Attraction extends Model
 {
     protected $casts = [
-        'rating' => 'decimal:1',
         'duration_hours' => 'decimal:1',
         'price' => 'decimal:2',
         'included' => 'array',

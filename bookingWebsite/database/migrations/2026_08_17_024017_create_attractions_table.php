@@ -16,8 +16,6 @@ return new class extends Migration
             $table->string('city');
             $table->string('country');
             $table->string('location_label');
-            $table->decimal('rating', 2, 1);
-            $table->unsignedInteger('review_count');
             $table->decimal('duration_hours', 4, 1);
             $table->string('duration_label');
             $table->unsignedInteger('capacity');

@@ -70,6 +70,8 @@
         border: 1px solid var(--border-soft);
         border-radius: .9rem;
         padding: 1.25rem;
+        position: sticky;
+        top: 1.5rem;
     }
 
     .filters-title {
@@ -198,9 +200,6 @@
     .attraction-body { padding: 1rem; display: flex; flex-direction: column; flex: 1; }
     .attraction-body .title { font-weight: 700; color: var(--navy-dark); margin-bottom: .3rem; }
 
-    .attraction-body .rating-row { font-size: .85rem; color: var(--navy-dark); margin-bottom: .5rem; display: flex; align-items: center; gap: .3rem; }
-    .attraction-body .rating-row .bi-star-fill { color: var(--gold); }
-    .attraction-body .rating-row .review-count { color: var(--text-muted); }
 
     .attraction-meta { font-size: .82rem; color: var(--text-muted); display: flex; flex-direction: column; gap: .3rem; margin-bottom: .9rem; }
     .attraction-meta span { display: flex; align-items: center; gap: .4rem; }
@@ -240,7 +239,7 @@
     }
 
     .pagination .page-link { color: var(--navy); border-color: var(--border-soft); }
-    .pagination .page-item.active .page-link { background: var(--navy); border-color: var(--navy); }
+    .pagination .page-item.active .page-link { background: var(--navy); border-color: var(--navy); color: #fff; }
     .pagination .page-item.disabled .page-link { color: #b8b4aa; }
 
     /* Photo placeholders (no real attraction photos yet) */
@@ -344,8 +343,6 @@
         margin-bottom: .9rem;
     }
 
-    .ad-meta-row .bi-star-fill { color: var(--gold); }
-    .ad-meta-row .review-count { color: var(--text-muted); }
     .ad-meta-row .meta-item { display: flex; align-items: center; gap: .35rem; color: var(--text-muted); }
 
     .ad-description { color: var(--text-muted); font-size: .9rem; line-height: 1.55; margin-bottom: 1.1rem; }
@@ -487,20 +484,6 @@
                 <div class="filters-title"><i class="bi bi-funnel"></i> Filters</div>
 
                 <div class="filters-section">
-                    <div class="filters-section-label">Category</div>
-                    @php $selectedCategories = request('categories', $categories); @endphp
-                    @foreach ($categories as $category)
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="categories[]" value="{{ $category }}"
-                                   id="category-{{ $categorySlugs[$category] }}" {{ in_array($category, $selectedCategories) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="category-{{ $categorySlugs[$category] }}">
-                                <span class="category-chip cat-{{ $categorySlugs[$category] }}">{{ $category }}</span>
-                            </label>
-                        </div>
-                    @endforeach
-                </div>
-
-                <div class="filters-section">
                     <div class="filters-section-label">Price Range</div>
                     <div class="price-range-inputs">
                         <input type="number" min="0" class="form-control" name="min_price" value="{{ request('min_price') }}" placeholder="$0">
@@ -538,12 +521,12 @@
                         <option value="recommended" {{ request('sort', 'recommended') === 'recommended' ? 'selected' : '' }}>Recommended</option>
                         <option value="price_asc" {{ request('sort') === 'price_asc' ? 'selected' : '' }}>Price: Low to High</option>
                         <option value="price_desc" {{ request('sort') === 'price_desc' ? 'selected' : '' }}>Price: High to Low</option>
-                        <option value="rating" {{ request('sort') === 'rating' ? 'selected' : '' }}>Rating</option>
                     </select>
                 </div>
             </div>
 
             {{-- Quick category pills --}}
+            @php $selectedCategories = request('categories', $categories); @endphp
             @php $isAllSelected = count(array_diff($categories, $selectedCategories)) === 0 && count($selectedCategories) === count($categories); @endphp
             <div class="quick-category-pills">
                 <a href="{{ route('attractions.index', array_merge(request()->except(['categories', 'page']), [])) }}"
@@ -566,10 +549,6 @@
                             </div>
                             <div class="attraction-body">
                                 <div class="title">{{ $attraction->title }}</div>
-                                <div class="rating-row">
-                                    <i class="bi bi-star-fill"></i> {{ number_format($attraction->rating, 1) }}
-                                    <span class="review-count">({{ number_format($attraction->review_count) }})</span>
-                                </div>
                                 <div class="attraction-meta">
                                     <span><i class="bi bi-clock"></i> {{ $attraction->duration_label }}</span>
                                     <span><i class="bi bi-people"></i> Up to {{ $attraction->capacity }}</span>
@@ -624,7 +603,6 @@
             <div class="ad-body">
                 <div class="ad-name" id="adName"></div>
                 <div class="ad-meta-row">
-                    <span><i class="bi bi-star-fill"></i> <span id="adScore"></span> <span class="review-count" id="adReviewCount"></span></span>
                     <span class="meta-item"><i class="bi bi-clock"></i> <span id="adDuration"></span></span>
                     <span class="meta-item"><i class="bi bi-people"></i> <span id="adCapacity"></span></span>
                 </div>
@@ -793,8 +771,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             renderCarousel(currentAttraction, index);
             document.getElementById('adName').textContent = currentAttraction.title;
-            document.getElementById('adScore').textContent = Number(currentAttraction.rating).toFixed(1);
-            document.getElementById('adReviewCount').textContent = `(${Number(currentAttraction.review_count).toLocaleString()} reviews)`;
             document.getElementById('adDuration').textContent = currentAttraction.duration_label;
             document.getElementById('adCapacity').textContent = `Up to ${currentAttraction.capacity}`;
             document.getElementById('adDescription').textContent = currentAttraction.description;
