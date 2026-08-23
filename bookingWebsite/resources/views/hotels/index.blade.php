@@ -64,6 +64,8 @@
         border: 1px solid var(--border-soft);
         border-radius: .9rem;
         padding: 1.25rem;
+        position: sticky;
+        top: 1.5rem;
     }
 
     .filters-title {
@@ -175,10 +177,6 @@
     .hotel-info { flex: 1; min-width: 220px; display: flex; flex-direction: column; }
     .hotel-info .name { font-weight: 700; font-size: 1.1rem; color: var(--navy-dark); }
     .hotel-info .location { font-size: .85rem; color: var(--text-muted); margin-bottom: .35rem; }
-    .hotel-info .rating-row { font-size: .85rem; color: var(--navy-dark); margin-bottom: .6rem; display: flex; align-items: center; gap: .3rem; }
-    .hotel-info .rating-row .bi-star-fill { color: var(--gold); }
-    .hotel-info .rating-row .review-count { color: var(--text-muted); }
-
     .amenity-pill {
         display: inline-flex;
         align-items: center;
@@ -226,7 +224,7 @@
     }
 
     .pagination .page-link { color: var(--navy); border-color: var(--border-soft); }
-    .pagination .page-item.active .page-link { background: var(--navy); border-color: var(--navy); }
+    .pagination .page-item.active .page-link { background: var(--navy); border-color: var(--navy); color: #fff; }
     .pagination .page-item.disabled .page-link { color: #b8b4aa; }
 
     /* Photo placeholders (no real hotel photos yet) */
@@ -321,10 +319,6 @@
     .hd-body { padding: 1.25rem; }
     .hd-name-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
     .hd-name { font-size: 1.4rem; font-weight: 700; color: var(--navy-dark); }
-    .hd-rating { text-align: right; white-space: nowrap; }
-    .hd-rating .bi-star-fill { color: var(--gold); }
-    .hd-rating .score { font-weight: 700; color: var(--navy-dark); }
-    .hd-rating .review-count { color: var(--text-muted); font-size: .82rem; }
 
     .hd-location { color: var(--text-muted); font-size: .88rem; margin: .3rem 0 .9rem; display: flex; align-items: center; gap: .35rem; }
     .hd-description { color: var(--text-muted); font-size: .9rem; line-height: 1.55; margin-bottom: 1.1rem; }
@@ -518,7 +512,6 @@
                         <option value="recommended" {{ request('sort', 'recommended') === 'recommended' ? 'selected' : '' }}>Recommended</option>
                         <option value="price_asc" {{ request('sort') === 'price_asc' ? 'selected' : '' }}>Price: Low to High</option>
                         <option value="price_desc" {{ request('sort') === 'price_desc' ? 'selected' : '' }}>Price: High to Low</option>
-                        <option value="rating" {{ request('sort') === 'rating' ? 'selected' : '' }}>Rating</option>
                     </select>
                 </div>
             </div>
@@ -535,10 +528,6 @@
                     <div class="hotel-info">
                         <div class="name">{{ $hotel->name }}</div>
                         <div class="location"><i class="bi bi-geo-alt"></i> {{ $hotel->city }}, {{ $hotel->country }}</div>
-                        <div class="rating-row">
-                            <i class="bi bi-star-fill"></i> {{ number_format($hotel->rating, 1) }}
-                            <span class="review-count">({{ number_format($hotel->review_count) }} reviews)</span>
-                        </div>
                         <div class="mb-3">
                             @foreach ($hotel->amenities as $amenity)
                                 <span class="amenity-pill">{{ $amenity }}</span>
@@ -588,10 +577,6 @@
             <div class="hd-body">
                 <div class="hd-name-row">
                     <div class="hd-name" id="hdName"></div>
-                    <div class="hd-rating">
-                        <div><i class="bi bi-star-fill"></i> <span class="score" id="hdScore"></span></div>
-                        <div class="review-count" id="hdReviewCount"></div>
-                    </div>
                 </div>
                 <div class="hd-location"><i class="bi bi-geo-alt"></i> <span id="hdAddress"></span></div>
                 <div class="hd-description" id="hdDescription"></div>
@@ -769,8 +754,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             renderCarousel(currentHotel, index);
             document.getElementById('hdName').textContent = currentHotel.name;
-            document.getElementById('hdScore').textContent = Number(currentHotel.rating).toFixed(1);
-            document.getElementById('hdReviewCount').textContent = `(${Number(currentHotel.review_count).toLocaleString()})`;
             document.getElementById('hdAddress').textContent = currentHotel.address;
             document.getElementById('hdDescription').textContent = currentHotel.description;
             document.getElementById('hdCheckIn').textContent = currentHotel.check_in_time;

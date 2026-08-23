@@ -12,8 +12,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'country',
     'address',
     'star_rating',
-    'rating',
-    'review_count',
     'badge',
     'price_per_night',
     'description',
@@ -26,7 +24,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Hotel extends Model
 {
     protected $casts = [
-        'rating' => 'decimal:1',
         'price_per_night' => 'decimal:2',
         'amenities' => 'array',
         'policies' => 'array',

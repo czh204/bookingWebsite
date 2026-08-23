@@ -16,8 +16,6 @@ return new class extends Migration
             $table->string('country');
             $table->string('address');
             $table->unsignedTinyInteger('star_rating');
-            $table->decimal('rating', 2, 1);
-            $table->unsignedInteger('review_count');
             $table->string('badge')->nullable();
             $table->decimal('price_per_night', 8, 2);
             $table->text('description')->nullable();
