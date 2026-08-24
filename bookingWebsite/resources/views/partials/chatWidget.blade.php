@@ -52,23 +52,35 @@ document.addEventListener('DOMContentLoaded', function () {
     const form        = document.getElementById('chatForm');
     const input       = document.getElementById('chatInput');
     const quickBtns   = document.querySelectorAll('.chat-quick-btn');
-    const endpoint  = @json(route('chat.send'));
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const endpoint       = @json(route('chat.send'));
+    const historyEndpoint = @json(route('chat.history'));
+    const csrfToken      = document.querySelector('meta[name="csrf-token"]').content;
 
-    // Returned by the server on the first reply, then echoed back so the
-    // agent keeps the thread instead of starting over each message.
-    let conversationId = null;
+    // The conversation itself is tracked server-side in the session, so
+    // nothing about the thread needs to be held here — this only tracks
+    // whether a request is currently in flight.
     let sending = false;
 
-    function openPanel() {
+    // Remembers whether the panel was left open, so navigating between
+    // pages doesn't silently close an in-progress conversation.
+    const PANEL_OPEN_KEY = 'voyagrChatPanelOpen';
+
+    function openPanel(options) {
         panel.classList.remove('d-none');
         bubbleBtn.classList.add('d-none');
-        input.focus();
+        sessionStorage.setItem(PANEL_OPEN_KEY, '1');
+
+        // Skipped when restoring on page load, so the widget doesn't steal
+        // focus from the page the user actually navigated to.
+        if (!options || options.focus !== false) {
+            input.focus();
+        }
     }
 
     function closePanel() {
         panel.classList.add('d-none');
         bubbleBtn.classList.remove('d-none');
+        sessionStorage.removeItem(PANEL_OPEN_KEY);
     }
 
     function scrollToBottom() {
@@ -149,34 +161,62 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
                 body: JSON.stringify({
                     message: question,
-                    conversation_id: conversationId,
                 }),
             });
 
             const data = await res.json().catch(function () { return {}; });
             typing.remove();
 
-            if (data.conversation_id) {
-                conversationId = data.conversation_id;
-            }
-
             if (res.status === 429) {
-                addBotMessage('Too many messages — please wait a moment before sending another.');
+                addBotMessage('Too many messages - please wait a moment before sending another.');
             } else {
-                addBotMessage(data.reply || 'Sorry — I could not get a response. Please try again.');
+                addBotMessage(data.reply || 'Sorry - I could not get a response. Please try again.');
             }
         } catch (error) {
             typing.remove();
-            addBotMessage('Sorry — I could not reach the server. Please check your connection and try again.');
+            addBotMessage('Sorry - I could not reach the server. Please check your connection and try again.');
         } finally {
             setSending(false);
             input.focus();
         }
     }
 
+    // Replays the session's conversation so navigating between pages
+    // doesn't appear to wipe the chat. The transcript is rebuilt from the
+    // database rather than cached in the browser, so it always matches the
+    // context the agent itself is working from.
+    async function restoreHistory() {
+        try {
+            const res = await fetch(historyEndpoint, {
+                headers: { 'Accept': 'application/json' },
+            });
+
+            if (!res.ok) return;
+
+            const data = await res.json().catch(function () { return {}; });
+            const history = Array.isArray(data.messages) ? data.messages : [];
+
+            history.forEach(function (message) {
+                if (message.role === 'user') {
+                    addUserMessage(message.content);
+                } else {
+                    addBotMessage(message.content);
+                }
+            });
+        } catch (error) {
+            
+        }
+    }
+
     bubbleBtn.addEventListener('click', openPanel);
     minimizeBtn.addEventListener('click', closePanel);
     closeBtn.addEventListener('click', closePanel);
+
+    if (sessionStorage.getItem(PANEL_OPEN_KEY) === '1') {
+        openPanel({ focus: false });
+    }
+
+    restoreHistory();
 
     quickBtns.forEach(function (btn) {
         btn.addEventListener('click', function () {

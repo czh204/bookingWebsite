@@ -5,14 +5,31 @@ namespace App\Http\Controllers;
 use App\Ai\Agents\SupportAgent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Laravel\Ai\Attributes\Provider as ProviderAttribute;
+use Laravel\Ai\Contracts\ConversationStore;
 use Laravel\Ai\Enums\Lab;
+use Laravel\Ai\Models\Conversation;
 use ReflectionClass;
 use Throwable;
 
 class ChatController extends Controller
 {
+    /**
+     * The conversation ID is kept in the session rather than round-tripped
+     * through the browser: it survives page navigation for free, works the
+     * same for guests as for signed-in users, and can't be swapped by a
+     * client for someone else's conversation UUID.
+     */
+    protected const SESSION_KEY = 'support_agent_conversation_id';
+
+    /**
+     * How many past messages to replay into the widget on page load.
+     */
+    protected const HISTORY_LIMIT = 50;
+
     /**
      * Keyword => fallback category. Checked in order, so action words
      * ("cancel", "refund") win over a merely-mentioned "hotel" — someone
@@ -33,33 +50,29 @@ class ChatController extends Controller
     {
         $validated = $request->validate([
             'message' => ['required', 'string', 'max:1000'],
-            'conversation_id' => ['nullable', 'string', 'max:36'],
         ]);
 
-        // The widget is available to guests, so conversations are keyed to the
-        // signed-in user when there is one and to the session otherwise.
+        // The widget is available to guests, so the participant is attached
+        // only when signed in; the conversation itself is tracked in session
+        // either way (see resolveConversationId).
         $participant = $request->user();
 
         if (! $this->activeProviderIsConfigured()) {
             return response()->json([
                 'reply' => $this->fallbackReply($validated['message']),
-                'conversation_id' => null,
                 'configured' => false,
             ]);
         }
 
         try {
-            $agent = new SupportAgent;
+            $conversationId = $this->resolveConversationId($request, $validated['message'], $participant);
 
-            $agent = $validated['conversation_id'] ?? false
-                ? $agent->continue($validated['conversation_id'], as: $participant)
-                : ($participant ? $agent->forUser($participant) : $agent);
-
-            $response = $agent->prompt($validated['message']);
+            $response = (new SupportAgent)
+                ->continue($conversationId, as: $participant)
+                ->prompt($validated['message']);
 
             return response()->json([
                 'reply' => (string) $response,
-                'conversation_id' => $response->conversationId ?? null,
                 'configured' => true,
             ]);
         } catch (Throwable $e) {
@@ -70,10 +83,79 @@ class ChatController extends Controller
 
             return response()->json([
                 'reply' => $this->fallbackReply($validated['message']),
-                'conversation_id' => $validated['conversation_id'] ?? null,
                 'configured' => true,
             ], 500);
         }
+    }
+
+    /**
+     * Replays the current conversation so the widget can restore its
+     * transcript after a page navigation.
+     */
+    public function history(Request $request): JsonResponse
+    {
+        $conversationId = $request->session()->get(self::SESSION_KEY);
+
+        if (! $conversationId || ! $this->conversationExists($conversationId)) {
+            return response()->json(['messages' => []]);
+        }
+
+        $messages = resolve(ConversationStore::class)
+            ->getLatestConversationMessages($conversationId, self::HISTORY_LIMIT)
+            ->map(fn ($message) => [
+                'role' => $message->role instanceof \BackedEnum ? $message->role->value : (string) $message->role,
+                'content' => (string) ($message->content ?? ''),
+            ])
+            // Tool-call turns come back with empty content and would render
+            // as blank bubbles; only user/assistant text belongs in the UI.
+            ->filter(fn (array $message) => $message['content'] !== ''
+                && in_array($message['role'], ['user', 'assistant'], true))
+            ->values();
+
+        return response()->json(['messages' => $messages]);
+    }
+
+    /**
+     * Returns the session's conversation ID, creating the conversation row
+     * first if there isn't a usable one yet.
+     *
+     * The row is created explicitly rather than letting the SDK do it on
+     * first prompt, because Laravel\Ai\Middleware\RememberConversation only
+     * persists a turn when there is a participant OR an existing
+     * conversation — so a guest would otherwise never get either, and their
+     * history would silently never save. Creating it up front also skips
+     * the SDK's extra title-generation API call, which nothing here shows.
+     */
+    protected function resolveConversationId(Request $request, string $message, ?object $participant): string
+    {
+        $existing = $request->session()->get(self::SESSION_KEY);
+
+        if ($existing && $this->conversationExists($existing)) {
+            return $existing;
+        }
+
+        $conversationId = resolve(ConversationStore::class)->storeConversation(
+            $participant ? Conversation::participantType($participant) : null,
+            $participant ? Conversation::participantKey($participant) : null,
+            Str::limit($message, 50, preserveWords: true),
+        );
+
+        $request->session()->put(self::SESSION_KEY, $conversationId);
+
+        return $conversationId;
+    }
+
+    /**
+     * Guards against a stale session pointing at a conversation that no
+     * longer exists — after a migrate:fresh, for example — which would
+     * otherwise orphan every new message under a dead conversation ID.
+     */
+    protected function conversationExists(string $conversationId): bool
+    {
+        return DB::connection(config('ai.conversations.connection'))
+            ->table(config('ai.conversations.tables.conversations', 'agent_conversations'))
+            ->where('id', $conversationId)
+            ->exists();
     }
 
     /**
@@ -127,9 +209,11 @@ class ChatController extends Controller
     protected function bookingFallback(): string
     {
         return "I'm having trouble reaching the assistant right now, but here's what I can tell you: "
-            .'For cancelling or modify a booking from My Trips - select "Cancel Reservation" or "Modify Reservation". '
+            .'you can cancel a booking from the Calendar page — open it and select "Cancel Reservation". '
             .'Refunds are full within 24 hours of purchase and partial after, based on fare rules. '
-            .'We accept major credit/debit cards and popular e-wallets inclduing TnG and Boost. ';
+            .'Modifications can\'t be made through the website after purchase — contact the phone number '
+            .'under the booking tab, as this is subject to the provider\'s own policy. '
+            .'We accept major credit/debit cards and popular e-wallets including TnG and Boost.';
     }
 
     protected function hotelFallback(): string
