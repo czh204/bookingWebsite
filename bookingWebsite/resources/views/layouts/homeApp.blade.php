@@ -250,6 +250,9 @@
             color: #fff;
         }
 
+        .chat-bubble a { color: var(--navy); font-weight: 600; text-decoration: underline; }
+        .chat-bubble-user a { color: #fff; }
+
         .chat-input-row {
             display: flex;
             align-items: center;
@@ -284,6 +287,27 @@
         }
 
         .chat-send-btn:hover { background: var(--navy-dark); }
+        .chat-send-btn:disabled, .chat-quick-btn:disabled { opacity: .5; cursor: not-allowed; }
+        .chat-input:disabled { opacity: .6; }
+
+        /* Typing indicator shown while the assistant is thinking */
+        .chat-typing { display: inline-flex; align-items: center; gap: .25rem; padding: .7rem .85rem; }
+
+        .chat-typing span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            animation: chat-typing-bounce 1.2s infinite ease-in-out;
+        }
+
+        .chat-typing span:nth-child(2) { animation-delay: .15s; }
+        .chat-typing span:nth-child(3) { animation-delay: .3s; }
+
+        @keyframes chat-typing-bounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: .4; }
+            30% { transform: translateY(-4px); opacity: 1; }
+        }
     </style>
 
     @stack('styles')

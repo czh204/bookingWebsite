@@ -52,24 +52,35 @@ document.addEventListener('DOMContentLoaded', function () {
     const form        = document.getElementById('chatForm');
     const input       = document.getElementById('chatInput');
     const quickBtns   = document.querySelectorAll('.chat-quick-btn');
-     //Hardcoded replies
-    const cannedReplies = {
-        'How do I cancel my booking?': 'You can cancel a booking from My Trips - open the booking and select "Cancel Reservation". Refund eligibility depends on the fare rules.',
-        'What is your refund policy?': 'Most bookings can be refunded in full within 24 hours of purchase, and partially refunded after that based on the fare type.',
-        'How do I modify my reservation?': 'Go to My Trips, open the booking, and choose "Modify Reservation" to change dates, room type, or passenger details.',
-        'What payment methods do you accept?': 'We accept all major credit/debit cards, PayPal, and popular e-wallets at checkout.'
-    };
-    const fallbackReply = "Thanks for your message! One of our support agents will follow up shortly. In the meantime, feel free to try one of the quick questions above.";
+    const endpoint       = @json(route('chat.send'));
+    const historyEndpoint = @json(route('chat.history'));
+    const csrfToken      = document.querySelector('meta[name="csrf-token"]').content;
 
-    function openPanel() {
+    // The conversation itself is tracked server-side in the session, so
+    // nothing about the thread needs to be held here — this only tracks
+    // whether a request is currently in flight.
+    let sending = false;
+
+    // Remembers whether the panel was left open, so navigating between
+    // pages doesn't silently close an in-progress conversation.
+    const PANEL_OPEN_KEY = 'voyagrChatPanelOpen';
+
+    function openPanel(options) {
         panel.classList.remove('d-none');
         bubbleBtn.classList.add('d-none');
-        input.focus();
+        sessionStorage.setItem(PANEL_OPEN_KEY, '1');
+
+        // Skipped when restoring on page load, so the widget doesn't steal
+        // focus from the page the user actually navigated to.
+        if (!options || options.focus !== false) {
+            input.focus();
+        }
     }
 
     function closePanel() {
         panel.classList.add('d-none');
         bubbleBtn.classList.remove('d-none');
+        sessionStorage.removeItem(PANEL_OPEN_KEY);
     }
 
     function scrollToBottom() {
@@ -85,25 +96,127 @@ document.addEventListener('DOMContentLoaded', function () {
         scrollToBottom();
     }
 
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // The assistant naturally formats its results link as markdown
+    // ([text](url)) — this is the only markdown syntax it's expected to
+    // use, so rather than pull in a markdown library, just turn that one
+    // pattern into a real link. Text is HTML-escaped first, and only
+    // http(s) URLs are linkified, so nothing in the model's output (or a
+    // malicious tool result) can inject markup or a javascript: URL.
+    function renderBotText(text) {
+        const escaped = escapeHtml(text);
+
+        return escaped.replace(
+            /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+            '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+        );
+    }
+
     function addBotMessage(text) {
         const row = document.createElement('div');
         row.className = 'chat-message chat-message-bot';
         row.innerHTML = '<span class="chat-avatar"><i class="bi bi-stars"></i></span><div class="chat-bubble"></div>';
-        row.querySelector('.chat-bubble').textContent = text;
+        row.querySelector('.chat-bubble').innerHTML = renderBotText(text);
         messages.appendChild(row);
         scrollToBottom();
     }
 
-    function respondTo(question) {
+    function addTypingIndicator() {
+        const row = document.createElement('div');
+        row.className = 'chat-message chat-message-bot';
+        row.id = 'chatTyping';
+        row.innerHTML = '<span class="chat-avatar"><i class="bi bi-stars"></i></span>'
+            + '<div class="chat-bubble chat-typing"><span></span><span></span><span></span></div>';
+        messages.appendChild(row);
+        scrollToBottom();
+        return row;
+    }
+
+    function setSending(state) {
+        sending = state;
+        input.disabled = state;
+        form.querySelector('.chat-send-btn').disabled = state;
+        quickBtns.forEach(function (btn) { btn.disabled = state; });
+    }
+
+    async function respondTo(question) {
+        if (sending) return;
+
         addUserMessage(question);
-        setTimeout(function () {
-            addBotMessage(cannedReplies[question] || fallbackReply);
-        }, 500);
+        setSending(true);
+        const typing = addTypingIndicator();
+
+        try {
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({
+                    message: question,
+                }),
+            });
+
+            const data = await res.json().catch(function () { return {}; });
+            typing.remove();
+
+            if (res.status === 429) {
+                addBotMessage('Too many messages - please wait a moment before sending another.');
+            } else {
+                addBotMessage(data.reply || 'Sorry - I could not get a response. Please try again.');
+            }
+        } catch (error) {
+            typing.remove();
+            addBotMessage('Sorry - I could not reach the server. Please check your connection and try again.');
+        } finally {
+            setSending(false);
+            input.focus();
+        }
+    }
+
+    // Replays the session's conversation so navigating between pages
+    // doesn't appear to wipe the chat. The transcript is rebuilt from the
+    // database rather than cached in the browser, so it always matches the
+    // context the agent itself is working from.
+    async function restoreHistory() {
+        try {
+            const res = await fetch(historyEndpoint, {
+                headers: { 'Accept': 'application/json' },
+            });
+
+            if (!res.ok) return;
+
+            const data = await res.json().catch(function () { return {}; });
+            const history = Array.isArray(data.messages) ? data.messages : [];
+
+            history.forEach(function (message) {
+                if (message.role === 'user') {
+                    addUserMessage(message.content);
+                } else {
+                    addBotMessage(message.content);
+                }
+            });
+        } catch (error) {
+            
+        }
     }
 
     bubbleBtn.addEventListener('click', openPanel);
     minimizeBtn.addEventListener('click', closePanel);
     closeBtn.addEventListener('click', closePanel);
+
+    if (sessionStorage.getItem(PANEL_OPEN_KEY) === '1') {
+        openPanel({ focus: false });
+    }
+
+    restoreHistory();
 
     quickBtns.forEach(function (btn) {
         btn.addEventListener('click', function () {
