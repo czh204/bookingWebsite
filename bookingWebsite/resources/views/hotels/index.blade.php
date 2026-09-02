@@ -423,7 +423,7 @@
 <section class="hotels-hero">
     <div class="mx-auto" style="max-width: 1180px;">
         <h1 class="font-serif fw-bold">Find Hotels</h1>
-        <p>Search 2M+ properties worldwide for your next stay</p>
+        <p>Search for your next stay right at Voyagr</p>
     </div>
 </section>
 

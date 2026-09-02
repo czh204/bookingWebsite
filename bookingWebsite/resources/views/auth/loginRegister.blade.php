@@ -15,15 +15,8 @@
     .font-serif { font-family: 'Playfair Display', Georgia, serif; }
  
     html, body { height: 100%; }
-    body { display: flex; flex-direction: column; }
- 
-    /* ---------- Top navbar ---------- */
-    .site-nav {
-        background: #f8f7f4;
-        border-bottom: 1px solid var(--border-soft);
-        padding: .85rem 2rem;
-    }
- 
+    body { background: var(--cream); }
+
     .brand-mark {
         width: 34px;
         height: 34px;
@@ -34,87 +27,33 @@
         align-items: center;
         justify-content: center;
     }
- 
+
     .brand-name {
         font-weight: 700;
         font-size: 1.15rem;
         color: #16202f;
     }
- 
-    .site-nav .nav-link {
-        color: #4b5563;
-        font-size: .95rem;
-        padding: .4rem .9rem;
-    }
- 
-    .btn-signin-outline {
-        border: 1px solid #16202f;
-        border-radius: 999px;
-        color: #16202f;
-        font-weight: 500;
-        padding: .4rem 1.1rem;
-    }
- 
-    /* ---------- Split screen ---------- */
-    .auth-split {
-        flex: 1;
-        display: flex;
-        min-height: 0;
-    }
- 
-    .auth-hero {
-        position: relative;
-        flex: 1 1 50%;
-        background: url('{{ asset('images/hero-boat.jpg') }}') center / cover no-repeat;
+
+    /* ---------- Centered auth card (the only thing on the page) ---------- */
+    .auth-panel {
+        min-height: 100%;
         display: flex;
         flex-direction: column;
-        justify-content: flex-end;
-        padding: 3rem;
-        color: #fff;
-        overflow: hidden;
-    }
- 
-    .auth-hero::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(180deg, rgba(20,30,50,.35) 0%, rgba(15,22,38,.75) 100%);
-    }
- 
-    .auth-hero-brand,
-    .auth-hero-copy {
-        position: relative;
-        z-index: 1;
-    }
- 
-    .auth-hero-brand {
-        position: absolute;
-        top: 1.5rem;
-        left: 1.5rem;
-    }
- 
-    .auth-hero-copy h2 {
-        font-size: 2.25rem;
-        line-height: 1.2;
-        margin-bottom: .75rem;
-    }
- 
-    .auth-hero-copy p {
-        opacity: .85;
-        max-width: 30rem;
-    }
- 
-    .auth-panel {
-        flex: 1 1 50%;
-        background: var(--cream);
-        display: flex;
         align-items: center;
         justify-content: center;
-        padding: 2rem;
-        overflow-y: auto;
+        gap: 1.75rem;
+        padding: 2rem 1.5rem;
     }
- 
-    .auth-panel-inner { width: 100%; max-width: 420px; }
+
+    .auth-panel-inner {
+        width: 100%;
+        max-width: 420px;
+        background: #fff;
+        border: 1px solid var(--border-soft);
+        border-radius: 1rem;
+        box-shadow: 0 20px 40px -20px rgba(0,0,0,.15);
+        padding: 2.25rem;
+    }
  
     .auth-panel-inner h1 {
         font-size: 1.9rem;
@@ -240,57 +179,19 @@
     .btn-social-pill:hover { background: #fafafa; }
     .btn-social-pill i.bi-google { color: #4285F4; }
     .btn-social-pill i.bi-facebook { color: #1877F2; }
- 
-    @media (max-width: 900px) {
-        .auth-split { flex-direction: column; }
-        .auth-hero { min-height: 320px; }
-    }
 </style>
 @endpush
  
 @section('content')
- 
-{{-- ---------------- Top nav ---------------- --}}
-<nav class="site-nav d-flex align-items-center justify-content-between">
+
+{{-- ---------------- Centered auth card ---------------- --}}
+<div class="auth-panel">
     <a href="{{ url('/') }}" class="d-flex align-items-center gap-2 text-decoration-none">
         <span class="brand-mark"><i class="bi bi-globe2"></i></span>
         <span class="brand-name font-serif">Voyagr.</span>
     </a>
- 
-    <div class="d-none d-md-flex gap-1">
-        <a href="{{ url('/') }}" class="nav-link">Home</a>
-        <a href="{{ url('/flights') }}" class="nav-link">Flights</a>
-        <a href="{{ url('/hotels') }}" class="nav-link">Hotels</a>
-        <a href="{{ url('/attractions') }}" class="nav-link">Attractions</a>
-        <a href="{{ url('/ai-planner') }}" class="nav-link">AI Planner</a>
-    </div>
- 
-    <div class="d-flex align-items-center gap-3">
-        <a href="{{ url('/cart') }}" class="text-dark fs-5"><i class="bi bi-cart3"></i></a>
-        <a href="{{ route('login') }}" class="btn-signin-outline d-inline-flex align-items-center gap-1">
-            <i class="bi bi-person"></i> Sign in
-        </a>
-    </div>
-</nav>
- 
-{{-- ---------------- Split screen ---------------- --}}
-<div class="auth-split">
- 
-    {{-- Left: hero image + copy --}}
-    <div class="auth-hero">
-        <div class="auth-hero-brand d-flex align-items-center gap-2">
-            <span class="brand-mark"><i class="bi bi-globe2"></i></span>
-            <span class="brand-name font-serif text-white">Voyagr.</span>
-        </div>
-        <div class="auth-hero-copy">
-            <h2 class="font-serif fw-semibold">Every journey begins with a single step.</h2>
-            <p>Join millions of travellers who trust Voyagr to plan, book, and experience the world.</p>
-        </div>
-    </div>
- 
-    {{-- Right: auth form --}}
-    <div class="auth-panel">
-        <div class="auth-panel-inner">
+
+    <div class="auth-panel-inner">
  
             @if (session('status'))
                 <div class="alert alert-success py-2">{{ session('status') }}</div>
@@ -331,7 +232,7 @@
                                    id="login-email"
                                    name="email"
                                    placeholder="alex@example.com"
-                                   value="{{ old('email') }}"
+                                   value="{{ $errors->login->any() ? old('email') : '' }}"
                                    required autofocus>
                             @error('email', 'login')
                                 <div class="invalid-feedback">{{ $message }}</div>
@@ -371,8 +272,6 @@
                         <button type="submit" class="btn btn-navy w-100">
                             Sign In <i class="bi bi-arrow-right"></i>
                         </button>
- 
-                        <div class="divider-text">or continue with</div>
                     </form>
                 </div>
  
@@ -402,7 +301,7 @@
                                    id="register-email"
                                    name="email"
                                    placeholder="alex@example.com"
-                                   value="{{ old('email') }}"
+                                   value="{{ $errors->register->any() ? old('email') : '' }}"
                                    required>
                             @error('email', 'register')
                                 <div class="invalid-feedback">{{ $message }}</div>
@@ -461,8 +360,6 @@
             </div>
         </div>
     </div>
-</div>
- 
 @endsection
  
 @push('scripts')

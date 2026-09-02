@@ -12,7 +12,7 @@
         align-items: center;
         justify-content: center;
         padding: 4rem 1.5rem 8rem;
-        background: linear-gradient(135deg, #2a3a5c 0%, var(--navy) 55%, var(--navy-dark) 100%);
+        background: url('https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1600&h=900&fit=crop&auto=format') center / cover no-repeat;
         color: #fff;
         text-align: center;
         overflow: hidden;
@@ -323,7 +323,6 @@
         <h1 class="font-serif fw-bold">Your World, <span class="accent">Beautifully</span> Planned</h1>
         <p class="lead-copy">Book flights, hotels, and experiences - or let our AI craft the perfect itinerary for your journey.</p>
     </div>
-    <span class="hero-placeholder-tag"><i class="bi bi-image"></i> Hero photo placeholder</span>
 </section>
  
 {{-- ================= SEARCH WIDGET ================= --}}
