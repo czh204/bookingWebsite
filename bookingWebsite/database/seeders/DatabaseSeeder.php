@@ -23,5 +23,6 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call(HotelSeeder::class);
+        $this->call(AttractionSeeder::class);
     }
 }
