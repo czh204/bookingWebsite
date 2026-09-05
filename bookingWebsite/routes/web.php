@@ -6,6 +6,7 @@ use App\Http\Controllers\AttractionController;
 use App\Http\Controllers\FlightController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\HotelController;
+use App\Http\Controllers\ItineraryController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -27,6 +28,7 @@ Route::get('/chat/history', [ChatController::class, 'history'])
     
 Route::get('/attractions', [AttractionController::class, 'index'])->name('attractions.index');
 Route::get('/flights', [FlightController::class, 'index'])->name('flights.index');
+Route::get('/ai-planner', [ItineraryController::class, 'index'])->name('itinerary.index');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'show'])->name('login');
