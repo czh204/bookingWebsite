@@ -93,6 +93,9 @@
     .price-range-inputs { display: flex; align-items: center; gap: .5rem; }
     .price-range-inputs .form-control { border-radius: .5rem; border-color: var(--border-soft); padding: .45rem .6rem; }
 
+    .airline-search { border-radius: .5rem; border-color: var(--border-soft); padding: .45rem .6rem; font-size: .9rem; }
+    .airline-search:focus { border-color: var(--navy); box-shadow: 0 0 0 .15rem rgba(30,42,69,.12); }
+
     .filters-card .form-check { margin-bottom: .55rem; }
     .filters-card .form-check-label { color: var(--navy-dark); font-size: .9rem; }
     .filters-card .form-check-input:checked { background-color: var(--navy); border-color: var(--navy); }
@@ -213,7 +216,7 @@
     }
 
     .pagination .page-link { color: var(--navy); border-color: var(--border-soft); }
-    .pagination .page-item.active .page-link { background: var(--navy); border-color: var(--navy); }
+    .pagination .page-item.active .page-link { background: var(--navy);  color: #fff; border-color: var(--navy); }
     .pagination .page-item.disabled .page-link { color: #b8b4aa; }
 
     /* ---------- Flight detail modal ---------- */
@@ -399,22 +402,28 @@
                 </div>
 
                 <div class="filters-section">
-                    <div class="filters-section-label">Airlines</div>
-                    @php $selectedAirlines = request('airlines', $airlines->all()); @endphp
-                    @foreach ($airlines as $airline)
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="airlines[]" value="{{ $airline }}"
-                                   id="airline-{{ \Illuminate\Support\Str::slug($airline) }}"
-                                   {{ in_array($airline, $selectedAirlines) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="airline-{{ \Illuminate\Support\Str::slug($airline) }}">{{ $airline }}</label>
-                        </div>
-                    @endforeach
+                    <div class="filters-section-label">Airline</div>
+                    <input type="text" class="form-control airline-search" name="airline"
+                           value="{{ request('airline') }}" list="airline-options"
+                           placeholder="Search airline or flight no.">
+                    {{-- Keeps the airline names discoverable now that the
+                         checkbox list is gone, without limiting input to them. --}}
+                    <datalist id="airline-options">
+                        @foreach ($airlines as $airline)
+                            <option value="{{ $airline }}"></option>
+                        @endforeach
+                    </datalist>
                 </div>
 
                 <div class="filters-section">
                     <div class="filters-section-label">Departure Time</div>
                     @php
-                        $timeOptions = ['morning' => 'Morning (6am–12pm)', 'afternoon' => 'Afternoon (12pm–6pm)', 'evening' => 'Evening (6pm–12am)'];
+                        $timeOptions = [
+                            'night' => 'Night (12am–6am)',
+                            'morning' => 'Morning (6am–12pm)',
+                            'afternoon' => 'Afternoon (12pm–6pm)',
+                            'evening' => 'Evening (6pm–12am)',
+                        ];
                         $selectedWindows = request('departure_time', []);
                     @endphp
                     @foreach ($timeOptions as $value => $label)

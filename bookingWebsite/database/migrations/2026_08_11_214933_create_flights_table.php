@@ -9,6 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('flights', function (Blueprint $table) {
+            $table->engine = 'InnoDB';
             $table->id();
             $table->string('airline_name');
             $table->string('airline_code', 3);

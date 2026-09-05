@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Flight;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -12,12 +13,12 @@ class FlightController extends Controller
 
     public function index(Request $request)
     {
-        $flights = $this->mockFlights();
+        $flights = $this->loadFlights();
+
+        $airlines = $flights->pluck('airline_name')->unique()->sort()->values();
 
         $flights = $this->applyFilters($flights, $request);
         $flights = $this->applySort($flights, $request->string('sort', 'price_asc')->toString());
-
-        $airlines = $this->mockFlights()->pluck('airline_name')->unique()->sort()->values();
 
         $page = LengthAwarePaginator::resolveCurrentPage();
         $paged = new LengthAwarePaginator(
@@ -35,146 +36,134 @@ class FlightController extends Controller
     }
 
     /**
-     * Stand-in for Flight::query()->...->paginate() until the `flights`
-     * table (see database/migrations/*_create_flights_table.php) is
-     * migrated and seeded. Field names match the Flight model's columns
-     * so this method can be swapped for a real query later.
+     * Full airport names for the modal's route bar. Not a flights column —
+     * this is a static lookup rather than data worth storing per row.
      */
-    protected function mockFlights(): Collection
+    protected const AIRPORT_NAMES = [
+        'JFK' => 'John F. Kennedy International Airport',
+        'LHR' => 'London Heathrow Airport',
+        'CDG' => 'Paris Charles de Gaulle Airport',
+        'DXB' => 'Dubai International Airport',
+        'SIN' => 'Singapore Changi Airport',
+        'FRA' => 'Frankfurt Airport',
+        'DOH' => 'Hamad International Airport',
+    ];
+
+    /**
+     * Display labels for the three fare classes. Every flight renders all
+     * three, so these have to exist even for a class the flight doesn't
+     * sell — the flight_fares table only stores the ones it does.
+     */
+    protected const FARE_CLASS_NAMES = [
+        'economy' => 'Economy',
+        'premium_economy' => 'Premium Economy',
+        'business' => 'Business',
+    ];
+
+    /**
+     * Loads every flight from the database, eager-loading whichever fare
+     * classes (see the create_flight_fares_table migration) exist for each
+     * one, seeded by database/seeders/FlightSeeder.php.
+     */
+    protected function loadFlights(): Collection
     {
-        $rows = [
-            ['airline_name' => 'British Airways', 'airline_code' => 'GB', 'flight_number' => 'BA 178', 'aircraft' => 'Boeing 777-300ER', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'LHR', 'destination_city' => 'London', 'departure_time' => '10:00', 'arrival_time' => '22:30', 'duration_minutes' => 450, 'stops' => 0, 'price' => 450],
-            ['airline_name' => 'Air France', 'airline_code' => 'FR', 'flight_number' => 'AF 011', 'aircraft' => 'Airbus A350-900', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'CDG', 'destination_city' => 'Paris', 'departure_time' => '18:45', 'arrival_time' => '08:15', 'duration_minutes' => 450, 'stops' => 0, 'price' => 380],
-            ['airline_name' => 'Emirates', 'airline_code' => 'AE', 'flight_number' => 'EK 202', 'aircraft' => 'Airbus A380-800', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'DXB', 'destination_city' => 'Dubai', 'departure_time' => '23:59', 'arrival_time' => '21:30', 'duration_minutes' => 811, 'stops' => 1, 'price' => 520],
-            ['airline_name' => 'Singapore Airlines', 'airline_code' => 'SG', 'flight_number' => 'SQ 25', 'aircraft' => 'Airbus A350-900ULR', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'SIN', 'destination_city' => 'Singapore', 'departure_time' => '09:30', 'arrival_time' => '07:05', 'duration_minutes' => 1115, 'stops' => 0, 'price' => 780],
-            ['airline_name' => 'British Airways', 'airline_code' => 'GB', 'flight_number' => 'BA 112', 'aircraft' => 'Boeing 787-9', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'LHR', 'destination_city' => 'London', 'departure_time' => '19:15', 'arrival_time' => '07:05', 'duration_minutes' => 410, 'stops' => 0, 'price' => 470],
-            ['airline_name' => 'Air France', 'airline_code' => 'FR', 'flight_number' => 'AF 023', 'aircraft' => 'Boeing 777-200ER', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'CDG', 'destination_city' => 'Paris', 'departure_time' => '06:20', 'arrival_time' => '19:55', 'duration_minutes' => 575, 'stops' => 1, 'price' => 410],
-            ['airline_name' => 'Emirates', 'airline_code' => 'AE', 'flight_number' => 'EK 204', 'aircraft' => 'Boeing 777-300ER', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'DXB', 'destination_city' => 'Dubai', 'departure_time' => '11:05', 'arrival_time' => '08:40', 'duration_minutes' => 815, 'stops' => 0, 'price' => 610],
-            ['airline_name' => 'Singapore Airlines', 'airline_code' => 'SG', 'flight_number' => 'SQ 21', 'aircraft' => 'Airbus A350-900', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'SIN', 'destination_city' => 'Singapore', 'departure_time' => '21:40', 'arrival_time' => '06:15', 'duration_minutes' => 1055, 'stops' => 1, 'price' => 705],
-            ['airline_name' => 'Lufthansa', 'airline_code' => 'LH', 'flight_number' => 'LH 400', 'aircraft' => 'Airbus A340-600', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'FRA', 'destination_city' => 'Frankfurt', 'departure_time' => '17:30', 'arrival_time' => '07:00', 'duration_minutes' => 450, 'stops' => 0, 'price' => 495],
-            ['airline_name' => 'Qatar Airways', 'airline_code' => 'QR', 'flight_number' => 'QR 701', 'aircraft' => 'Boeing 777-300ER', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'DOH', 'destination_city' => 'Doha', 'departure_time' => '22:10', 'arrival_time' => '18:45', 'duration_minutes' => 755, 'stops' => 1, 'price' => 560],
-            ['airline_name' => 'Lufthansa', 'airline_code' => 'LH', 'flight_number' => 'LH 402', 'aircraft' => 'Boeing 747-8', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'FRA', 'destination_city' => 'Frankfurt', 'departure_time' => '08:05', 'arrival_time' => '21:35', 'duration_minutes' => 450, 'stops' => 0, 'price' => 515],
-            ['airline_name' => 'Qatar Airways', 'airline_code' => 'QR', 'flight_number' => 'QR 703', 'aircraft' => 'Airbus A350-1000', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'DOH', 'destination_city' => 'Doha', 'departure_time' => '13:20', 'arrival_time' => '10:00', 'duration_minutes' => 760, 'stops' => 2, 'price' => 505],
-            ['airline_name' => 'British Airways', 'airline_code' => 'GB', 'flight_number' => 'BA 184', 'aircraft' => 'Airbus A380-800', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'LHR', 'destination_city' => 'London', 'departure_time' => '00:30', 'arrival_time' => '12:15', 'duration_minutes' => 465, 'stops' => 0, 'price' => 440],
-            ['airline_name' => 'Air France', 'airline_code' => 'FR', 'flight_number' => 'AF 007', 'aircraft' => 'Airbus A220-300', 'origin_code' => 'JFK', 'origin_city' => 'New York', 'destination_code' => 'CDG', 'destination_city' => 'Paris', 'departure_time' => '02:45', 'arrival_time' => '16:20', 'duration_minutes' => 455, 'stops' => 2, 'price' => 360],
-        ];
-
-        $airportNames = [
-            'JFK' => 'John F. Kennedy International Airport',
-            'LHR' => 'London Heathrow Airport',
-            'CDG' => 'Paris Charles de Gaulle Airport',
-            'DXB' => 'Dubai International Airport',
-            'SIN' => 'Singapore Changi Airport',
-            'FRA' => 'Frankfurt Airport',
-            'DOH' => 'Hamad International Airport',
-        ];
-
-        // Which fare classes each flight offers. Flights not listed here
-        // default to Economy only. Once `flight_fares` (see the
-        // create_flight_fares_table migration) is seeded per flight, this
-        // map — and buildFares() below — can be replaced by the flight's
-        // real fares() relation.
-        $fareTiersByFlightNumber = [
-            'BA 178' => ['economy', 'premium_economy', 'business'],
-            'BA 112' => ['economy', 'premium_economy'],
-            'BA 184' => ['economy'],
-            'AF 011' => ['economy', 'premium_economy', 'business'],
-            'AF 023' => ['economy', 'premium_economy'],
-            'AF 007' => ['economy'],
-            'EK 202' => ['economy', 'premium_economy', 'business'],
-            'EK 204' => ['economy', 'business'],
-            'SQ 25' => ['economy', 'premium_economy', 'business'],
-            'SQ 21' => ['economy', 'business'],
-            'LH 400' => ['economy', 'premium_economy', 'business'],
-            'LH 402' => ['economy', 'premium_economy'],
-            'QR 701' => ['economy', 'premium_economy', 'business'],
-            'QR 703' => ['economy', 'premium_economy'],
-        ];
-
-        return collect($rows)
-            ->map(function (array $row, int $i) use ($airportNames, $fareTiersByFlightNumber) {
-                $availableTiers = $fareTiersByFlightNumber[$row['flight_number']] ?? ['economy'];
-
-                return (object) array_merge($row, [
-                    'id' => $i + 1,
-                    'departure_date' => now()->toDateString(),
-                    'origin_airport_name' => $airportNames[$row['origin_code']] ?? $row['origin_city'].' Airport',
-                    'destination_airport_name' => $airportNames[$row['destination_code']] ?? $row['destination_city'].' Airport',
-                    'stop_label' => match ($row['stops']) {
-                        0 => 'Non-stop',
-                        1 => '1 Stop',
-                        default => $row['stops'].' Stops',
-                    },
-                    'highlight' => $this->buildHighlight($row, $availableTiers),
-                    'fares' => $this->buildFares($row['price'], $availableTiers),
-                ]);
-            });
+        return Flight::with('fares')
+            ->get()
+            ->map(fn (Flight $flight) => $this->mapFlight($flight));
     }
 
     /**
-     * Fare class pricing/perks. In the real schema this becomes
-     * FlightFare rows (fare_class, badge, price, perks, ...) belonging to
-     * a Flight; the multipliers here just derive a plausible price per
-     * tier from the flight's base (economy) fare.
+     * Flattens a Flight model (plus its loaded fares relation) into the
+     * plain object shape the view/JS expect. Built from
+     * attributesToArray() rather than the model itself so the JSON we
+     * embed in data-flight="" isn't clobbered by Eloquent's
+     * auto-serialization of the loaded `fares` relation.
      */
-    protected function buildFares(float $basePrice, array $availableTiers): array
+    protected function mapFlight(Flight $flight): object
     {
-        $tiers = [
-            'economy' => [
-                'name' => 'Economy',
-                'badge' => null,
-                'multiplier' => 1,
-                'checked_bag' => '23 kg checked bag',
-                'carry_on' => '7 kg carry-on',
-                'perks' => ['Standard seat (pitch 31–32")', 'Meal & beverages', 'Personal IFE screen', 'USB charging port'],
-                'policy' => 'Non-refundable · Changes from $75',
-            ],
-            'premium_economy' => [
-                'name' => 'Premium Economy',
-                'badge' => 'Popular',
-                'multiplier' => 1.9,
-                'checked_bag' => '32 kg checked bag',
-                'carry_on' => '10 kg carry-on',
-                'perks' => ['Wider seat (pitch 38")', 'Premium meals & wine list', 'Larger IFE screen', 'Priority boarding', 'Extra legroom'],
-                'policy' => 'Refundable · Free date changes',
-            ],
-            'business' => [
-                'name' => 'Business',
-                'badge' => 'Best Value',
-                'multiplier' => 3.8,
-                'checked_bag' => '40 kg checked bag',
-                'carry_on' => '2× carry-on bags',
-                'perks' => ['Lie-flat bed (seat pitch 72")', 'Fine dining à la carte', 'Noise-cancelling headphones', 'Priority check-in & lounge', 'Limousine transfer (select routes)'],
-                'policy' => 'Fully refundable · Free changes',
-            ],
-        ];
+        $data = $flight->attributesToArray();
 
-        return collect($tiers)->map(function (array $tier, string $key) use ($availableTiers, $basePrice) {
-            $available = in_array($key, $availableTiers, true);
+        // Times come back from MySQL as H:i:s; the cards show H:i.
+        $data['departure_time'] = substr((string) $flight->departure_time, 0, 5);
+        $data['arrival_time'] = substr((string) $flight->arrival_time, 0, 5);
+        $data['stops'] = (int) $flight->stops;
+
+        $data['origin_airport_name'] = self::AIRPORT_NAMES[$flight->origin_code] ?? $flight->origin_city.' Airport';
+        $data['destination_airport_name'] = self::AIRPORT_NAMES[$flight->destination_code] ?? $flight->destination_city.' Airport';
+        $data['stop_label'] = match ((int) $flight->stops) {
+            0 => 'Non-stop',
+            1 => '1 Stop',
+            default => $flight->stops.' Stops',
+        };
+        $data['fares'] = $this->buildFares($flight);
+        $data['highlight'] = $this->buildHighlight($flight);
+
+        return (object) $data;
+    }
+
+    /**
+     * All three fare classes always render; one with no matching
+     * flight_fares row for this flight shows as unavailable rather than
+     * being fabricated.
+     */
+    protected function buildFares(Flight $flight): array
+    {
+        $existing = $flight->fares->keyBy('fare_class');
+
+        return collect(self::FARE_CLASS_NAMES)->map(function (string $name, string $key) use ($existing) {
+            $fare = $existing->get($key);
+
+            if (! $fare) {
+                return [
+                    'key' => $key,
+                    'name' => $name,
+                    'badge' => null,
+                    'available' => false,
+                    'price' => null,
+                    'checked_bag' => null,
+                    'carry_on' => null,
+                    'perks' => [],
+                    'policy' => null,
+                ];
+            }
 
             return [
                 'key' => $key,
-                'name' => $tier['name'],
-                'badge' => $tier['badge'],
-                'available' => $available,
-                'price' => $available ? (int) round($basePrice * $tier['multiplier']) : null,
-                'checked_bag' => $tier['checked_bag'],
-                'carry_on' => $tier['carry_on'],
-                'perks' => $tier['perks'],
-                'policy' => $tier['policy'],
+                'name' => $name,
+                'badge' => $fare->badge,
+                'available' => true,
+                'price' => (int) round((float) $fare->price),
+                'checked_bag' => $fare->checked_bag_kg ? "{$fare->checked_bag_kg} kg checked bag" : null,
+                'carry_on' => $fare->carry_on,
+                // seat_info leads the perk list, matching how the card reads.
+                'perks' => array_values(array_filter(array_merge([$fare->seat_info], $fare->perks ?? []))),
+                'policy' => $this->buildPolicy($fare),
             ];
         })->values()->all();
     }
 
-    protected function buildHighlight(array $row, array $availableTiers): string
+    /**
+     * Turns the fare's refundable / change_fee_from columns into the
+     * one-line policy the fare card shows.
+     */
+    protected function buildPolicy(\App\Models\FlightFare $fare): string
     {
-        $service = match ($row['stops']) {
+        $fee = $fare->change_fee_from === null ? null : (int) round((float) $fare->change_fee_from);
+        $changes = $fee ? "Changes from \${$fee}" : 'Free changes';
+
+        return ($fare->refundable ? 'Fully refundable' : 'Non-refundable')." · {$changes}";
+    }
+
+    protected function buildHighlight(Flight $flight): string
+    {
+        $service = match ((int) $flight->stops) {
             0 => 'Direct overnight service',
             1 => 'One-stop service',
             default => 'Multi-stop service',
         };
 
-        $tierNames = collect($availableTiers)
+        $tierNames = $flight->fares
+            ->pluck('fare_class')
             ->reverse()
             ->map(fn ($tier) => match ($tier) {
                 'business' => 'business',
@@ -187,7 +176,7 @@ class FlightController extends Controller
             ? $tierNames->slice(0, -1)->implode(', ').', and '.$tierNames->last()
             : $tierNames->first();
 
-        return "{$service} to {$row['destination_city']}. Enjoy {$cabins} cabins with modern amenities.";
+        return "{$service} to {$flight->destination_city}. Enjoy {$cabins} cabins with modern amenities.";
     }
 
     protected function applyFilters(Collection $flights, Request $request): Collection
@@ -197,7 +186,7 @@ class FlightController extends Controller
         $minPrice = $request->query('min_price');
         $maxPrice = $request->query('max_price');
         $stops = (array) $request->query('stops', []);
-        $airlines = (array) $request->query('airlines', []);
+        $airline = trim((string) $request->query('airline'));
         $departureWindows = (array) $request->query('departure_time', []);
 
         return $flights
@@ -212,18 +201,33 @@ class FlightController extends Controller
 
                 return in_array($bucket, $stops, true);
             }))
-            ->when(count($airlines) > 0, fn ($c) => $c->filter(fn ($f) => in_array($f->airline_name, $airlines, true)))
+            ->when($airline !== '', fn ($c) => $c->filter(fn ($f) => str_contains(strtolower($f->airline_name), strtolower($airline))
+                || str_contains(strtolower($f->airline_code), strtolower($airline))
+                || str_contains(strtolower($f->flight_number), strtolower($airline))))
             ->when(count($departureWindows) > 0, fn ($c) => $c->filter(function ($f) use ($departureWindows) {
-                $hour = (int) explode(':', $f->departure_time)[0];
-                $window = match (true) {
-                    $hour >= 6 && $hour < 12 => 'morning',
-                    $hour >= 12 && $hour < 18 => 'afternoon',
-                    default => 'evening',
-                };
-
-                return in_array($window, $departureWindows, true);
+                return in_array($this->departureWindow($f->departure_time), $departureWindows, true);
             }))
             ->values();
+    }
+
+    /**
+     * Buckets a departure time into one of the four filter windows.
+     *
+     * Every range is stated explicitly: an earlier version let hours 0-5
+     * fall through a `default` branch into "evening", so a 02:45 departure
+     * was filed under "Evening (6pm-12am)" and there was no way to filter
+     * for early-morning flights at all.
+     */
+    protected function departureWindow(string $departureTime): string
+    {
+        $hour = (int) explode(':', $departureTime)[0];
+
+        return match (true) {
+            $hour >= 0 && $hour < 6 => 'night',
+            $hour >= 6 && $hour < 12 => 'morning',
+            $hour >= 12 && $hour < 18 => 'afternoon',
+            default => 'evening',
+        };
     }
 
     protected function applySort(Collection $flights, string $sort): Collection
