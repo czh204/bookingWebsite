@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\AttractionController;
+use App\Http\Controllers\FlightController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\HotelController;
 use Illuminate\Support\Facades\Route;
@@ -23,7 +24,9 @@ Route::post('/chat', [ChatController::class, '__invoke'])
 Route::get('/chat/history', [ChatController::class, 'history'])
     ->middleware('throttle:60,1')
     ->name('chat.history');
+    
 Route::get('/attractions', [AttractionController::class, 'index'])->name('attractions.index');
+Route::get('/flights', [FlightController::class, 'index'])->name('flights.index');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'show'])->name('login');
