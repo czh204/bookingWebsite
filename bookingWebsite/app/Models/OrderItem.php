@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'type',
     'item_id',
     'option_key',
+    'booking_date',
     'title',
     'subtitle',
     'meta',
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class OrderItem extends Model
 {
     protected $casts = [
+        'booking_date' => 'date',
         'unit_price' => 'decimal:2',
         'line_total' => 'decimal:2',
     ];

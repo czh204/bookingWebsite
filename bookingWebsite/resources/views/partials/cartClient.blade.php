@@ -1,10 +1,42 @@
 {{--
     Shared Add-to-Cart helper used by the flight, hotel and attraction
-    modals. Posts only the item id and the chosen option key - the server
-    resolves the price itself, so nothing here can set what gets charged.
+    modals. Posts the item id, the chosen option key and the booking date -
+    the server resolves the price itself, so nothing here can set what
+    gets charged, and it re-checks the date so nothing here can backdate.
 --}}
 <script>
 window.Voyagr = window.Voyagr || {};
+
+/** Today as YYYY-MM-DD in the visitor's own timezone, not UTC. */
+window.Voyagr.today = function () {
+    const now = new Date();
+    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+
+    return local.toISOString().slice(0, 10);
+};
+
+/**
+ * Reads a modal's booking date, showing the inline error and returning
+ * null when it's empty or in the past. Catches the two ways `min` can be
+ * bypassed: typing into the field, and browsers without date support.
+ *
+ * The floor is the field's own `min`, which the server rendered, not the
+ * browser's clock. Those disagree whenever the app timezone and the
+ * visitor's differ — and the server is the one that decides, since it
+ * re-checks the date on arrival.
+ */
+window.Voyagr.readBookingDate = function (input) {
+    const wrap = input.closest('.booking-date-field');
+    const error = wrap ? wrap.querySelector('.booking-date-error') : null;
+    const value = (input.value || '').trim();
+    const floor = input.min || window.Voyagr.today();
+    const valid = value !== '' && value >= floor;
+
+    input.classList.toggle('is-invalid', !valid);
+    if (error) error.hidden = valid;
+
+    return valid ? value : null;
+};
 
 window.Voyagr.addToCart = function (payload, button) {
     if (!button || button.disabled) return;

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Attraction;
 use App\Models\Flight;
 use App\Models\Hotel;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -57,11 +58,20 @@ class Cart
      * Adds an item, resolving its real details from the database.
      *
      * Returns null when the requested option doesn't exist — an
-     * unavailable fare class, a room type the hotel doesn't offer — so
-     * the caller can reject the request rather than adding a phantom line.
+     * unavailable fare class, a room type the hotel doesn't offer — or
+     * when the booking date is missing, malformed or in the past, so the
+     * caller can reject the request rather than adding a phantom line.
      */
-    public function add(string $type, int $itemId, string $optionKey, int $quantity = 1): ?object
+    public function add(string $type, int $itemId, string $optionKey, ?string $bookingDate, int $quantity = 1): ?object
     {
+        // Re-checked here, not just in the picker: `min` on a date input
+        // is a hint to the browser, not a rule a POST has to respect.
+        $date = $this->normaliseBookingDate($bookingDate);
+
+        if ($date === null) {
+            return null;
+        }
+
         $resolved = match ($type) {
             'flight' => $this->resolveFlight($itemId, $optionKey),
             'hotel' => $this->resolveHotel($itemId, $optionKey),
@@ -73,10 +83,13 @@ class Cart
             return null;
         }
 
+        $resolved['booking_date'] = $date;
+
         $lines = session(self::SESSION_KEY, []);
-        // Same item + same option is one line with a bumped quantity,
-        // not a second identical row.
-        $lineId = $this->lineId($type, $itemId, $optionKey);
+        // Same item + same option + same date is one line with a bumped
+        // quantity. The date is part of the key, so the same flight on two
+        // different days is correctly two separate lines.
+        $lineId = $this->lineId($type, $itemId, $optionKey, $date);
 
         if (isset($lines[$lineId])) {
             $lines[$lineId]['quantity'] += $quantity;
@@ -87,6 +100,38 @@ class Cart
         session([self::SESSION_KEY => $lines]);
 
         return (object) $lines[$lineId];
+    }
+
+    /**
+     * Accepts a Y-m-d string on or after today, returning it normalised.
+     * Null means "unusable" — absent, wrong shape, a date that doesn't
+     * exist (2026-02-31), or in the past.
+     */
+    protected function normaliseBookingDate(?string $date): ?string
+    {
+        if (! is_string($date) || ! preg_match('/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/', $date)) {
+            return null;
+        }
+
+        try {
+            $parsed = CarbonImmutable::createFromFormat('Y-m-d', $date)->startOfDay();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        // Round-trip check rejects a day that doesn't exist: "2026-02-31"
+        // parses happily, but as March 3rd.
+        if ($parsed->format('Y-m-d') !== $date) {
+            return null;
+        }
+
+        // No backdating. Today itself is allowed — a same-day booking is
+        // a normal thing to want.
+        if ($parsed->lt(CarbonImmutable::today())) {
+            return null;
+        }
+
+        return $date;
     }
 
     public function remove(string $lineId): bool
@@ -185,9 +230,9 @@ class Cart
             : min($promo['value'], $subtotal);
     }
 
-    protected function lineId(string $type, int $itemId, string $optionKey): string
+    protected function lineId(string $type, int $itemId, string $optionKey, string $bookingDate): string
     {
-        return substr(md5("{$type}:{$itemId}:{$optionKey}"), 0, 16);
+        return substr(md5("{$type}:{$itemId}:{$optionKey}:{$bookingDate}"), 0, 16);
     }
 
     /**

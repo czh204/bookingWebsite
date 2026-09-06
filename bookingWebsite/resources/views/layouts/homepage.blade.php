@@ -446,7 +446,7 @@
         <div class="col-6 col-lg-3">
             <a href="{{ url('/ai-planner') }}" class="quick-link-card">
                 <div class="quick-link-icon icon-planner"><i class="bi bi-calendar-check"></i></div>
-                <h3>AI Planner</h3>
+                <h3>Trips</h3>
                 <p>Smart itineraries</p>
             </a>
         </div>

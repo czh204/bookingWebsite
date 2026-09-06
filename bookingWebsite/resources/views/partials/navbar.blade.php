@@ -9,7 +9,9 @@
         <a href="{{ url('/flights') }}" class="nav-pill-link {{ request()->is('flights*') ? 'active' : '' }}">Flights</a>
         <a href="{{ url('/hotels') }}" class="nav-pill-link {{ request()->is('hotels*') ? 'active' : '' }}">Hotels</a>
         <a href="{{ url('/attractions') }}" class="nav-pill-link {{ request()->is('attractions*') ? 'active' : '' }}">Attractions</a>
-        <a href="{{ url('/ai-planner') }}" class="nav-pill-link {{ request()->is('ai-planner*') ? 'active' : '' }}">AI Planner</a>
+        {{-- Path stays /ai-planner so existing links keep working; the page
+             itself is now My Bookings, with the planner inside it. --}}
+        <a href="{{ url('/ai-planner') }}" class="nav-pill-link {{ request()->is('ai-planner*') ? 'active' : '' }}">My Bookings</a>
     </div>
  
     <div class="d-flex align-items-center gap-3">
@@ -34,7 +36,8 @@
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
                     <li><a class="dropdown-item" href="{{ url('/account') }}"><i class="bi bi-person me-2"></i>My Account</a></li>
-                    <li><a class="dropdown-item" href="{{ url('/bookings') }}"><i class="bi bi-suitcase me-2"></i>My Trips</a></li>
+                    {{-- Was /bookings, which has no route and 404s. --}}
+                    <li><a class="dropdown-item" href="{{ route('itinerary.index') }}"><i class="bi bi-suitcase me-2"></i>My Bookings</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <form method="POST" action="{{ route('logout') }}">

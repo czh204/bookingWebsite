@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Services\BookingItinerary;
 use App\Services\Cart;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,10 @@ class CheckoutController extends Controller
         'duitnow' => ['name' => 'DuitNow', 'tagline' => 'DuitNow QR', 'icon' => 'bi-qr-code', 'qr' => 'images/wallets/duitnow-qr.png'],
     ];
 
-    public function __construct(protected Cart $cart) {}
+    public function __construct(
+        protected Cart $cart,
+        protected BookingItinerary $itinerary,
+    ) {}
 
     public function show()
     {
@@ -58,6 +62,10 @@ class CheckoutController extends Controller
         // This is a mock payment: there is no gateway to decline it, so a
         // well-formed submission always succeeds. 
         $order = $this->createOrder($data, $method);
+
+        // Put the booking on the planner calendar straight away, so it's
+        // waiting there when the user next opens it.
+        $this->itinerary->syncOrder($order);
 
         $this->cart->clear();
 
@@ -155,6 +163,7 @@ class CheckoutController extends Controller
                     'type' => $line->type,
                     'item_id' => $line->item_id,
                     'option_key' => $line->option_key,
+                    'booking_date' => $line->booking_date,
                     'title' => $line->title,
                     'subtitle' => $line->subtitle,
                     'meta' => $line->meta,

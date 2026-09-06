@@ -171,6 +171,9 @@
                 <div>
                     <div class="title">{{ $item->title }}</div>
                     <div class="meta">{{ $item->meta }}</div>
+                    @if ($item->booking_date)
+                        <div class="meta"><i class="bi bi-calendar3"></i> {{ $item->booking_date->format('D, j M Y') }}</div>
+                    @endif
                     @if ($item->quantity > 1)
                         <div class="meta">Quantity: {{ $item->quantity }}</div>
                     @endif
