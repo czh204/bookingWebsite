@@ -101,6 +101,45 @@
             font-weight: 700;
         }
  
+        /* ---------- Booking date picker (shared by the three modals) ---------- */
+        .booking-date-field {
+            background: var(--cream);
+            border: 1px solid var(--border-soft);
+            border-radius: .7rem;
+            padding: .75rem .9rem;
+            margin-bottom: 1rem;
+        }
+
+        .booking-date-label {
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+            font-size: .72rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: .45rem;
+        }
+
+        .booking-date-input {
+            background: #fff;
+            border-color: var(--border-soft);
+            border-radius: .5rem;
+            padding: .5rem .75rem;
+            font-size: .9rem;
+            color: var(--navy-dark);
+            max-width: 220px;
+        }
+
+        .booking-date-input:focus {
+            border-color: var(--navy);
+            box-shadow: 0 0 0 .15rem rgba(30,42,69,.12);
+        }
+
+        .booking-date-input.is-invalid { border-color: #b91c1c; }
+        .booking-date-error { color: #b91c1c; font-size: .78rem; margin-top: .35rem; }
+
         /* ---------- Cart badge ---------- */
         .cart-count-badge {
             position: absolute;

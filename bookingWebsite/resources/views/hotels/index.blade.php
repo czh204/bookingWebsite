@@ -600,6 +600,8 @@
                     </div>
                 </div>
 
+                @include('partials.bookingDateField', ['id' => 'hdBookingDate'])
+
                 <h6 class="hd-section-heading">Choose a Room</h6>
                 <div id="hdRoomList"></div>
 
@@ -739,10 +741,14 @@ document.addEventListener('DOMContentLoaded', function () {
     bookRoomBtn.addEventListener('click', function () {
         if (!currentHotel || !selectedRoomKey) return;
 
+        const bookingDate = window.Voyagr.readBookingDate(document.getElementById('hdBookingDate'));
+        if (!bookingDate) return;
+
         window.Voyagr.addToCart({
             type: 'hotel',
             item_id: currentHotel.id,
             option_key: selectedRoomKey,
+            booking_date: bookingDate,
         }, bookRoomBtn);
     });
 

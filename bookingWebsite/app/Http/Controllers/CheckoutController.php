@@ -163,6 +163,7 @@ class CheckoutController extends Controller
                     'type' => $line->type,
                     'item_id' => $line->item_id,
                     'option_key' => $line->option_key,
+                    'booking_date' => $line->booking_date,
                     'title' => $line->title,
                     'subtitle' => $line->subtitle,
                     'meta' => $line->meta,

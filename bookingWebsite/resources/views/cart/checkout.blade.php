@@ -201,6 +201,32 @@
     .wallet-status.blocked { background: #fdf1d0; color: #92610f; }
     .wallet-status.done { background: #dcf3e6; color: #16a34a; }
 
+    /* Local-only testing control — deliberately looks unlike real UI. */
+    .wallet-mock {
+        margin-top: 1.1rem;
+        padding-top: 1rem;
+        border-top: 1px dashed var(--border-soft);
+    }
+
+    .wallet-mock-label {
+        font-size: .74rem;
+        color: var(--text-muted);
+        margin-bottom: .5rem;
+    }
+
+    .btn-mock-paid {
+        background: #fff;
+        border: 1px dashed #16a34a;
+        border-radius: .6rem;
+        color: #16a34a;
+        font-weight: 600;
+        font-size: .86rem;
+        padding: .55rem 1.2rem;
+    }
+
+    .btn-mock-paid:hover { background: #dcf3e6; color: #15803d; }
+    .btn-mock-paid:disabled { opacity: .55; cursor: not-allowed; }
+
     .wallet-spinner {
         width: 15px;
         height: 15px;
@@ -488,6 +514,20 @@
                             <span id="walletStatusText">Waiting for payment…</span>
                         </div>
                     </div>
+
+                    @if (app()->environment('local'))
+                        {{-- Testing shortcut: fires the same completion path
+                             the timer does, without the wait. Local only, so
+                             it can't reach a deployed site. --}}
+                        <div class="wallet-mock">
+                            <div class="wallet-mock-label">
+                                <i class="bi bi-tools"></i> Testing only — no real wallet is contacted
+                            </div>
+                            <button type="button" class="btn btn-mock-paid" id="mockWalletPaid">
+                                <i class="bi bi-check2-circle me-1"></i> Simulate Payment Received
+                            </button>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -660,10 +700,36 @@ document.addEventListener('DOMContentLoaded', function () {
 
         setStatus('waiting', 'Waiting for payment…', true);
 
-        detectTimer = setTimeout(function () {
-            setStatus('done', 'Payment received — confirming your booking…', false);
-            form.submit();
-        }, DETECT_DELAY_MS);
+        detectTimer = setTimeout(completePayment, DETECT_DELAY_MS);
+    }
+
+    /** The single completion path — the timer and the mock button share it. */
+    function completePayment() {
+        cancelDetection();
+        setStatus('done', 'Payment received — confirming your booking…', false);
+        form.submit();
+    }
+
+    // ----- Local-only "Simulate Payment Received" button -----
+    var mockBtn = document.getElementById('mockWalletPaid');
+
+    if (mockBtn) {
+        mockBtn.addEventListener('click', function () {
+            // Same guards the timer honours, so the shortcut can't submit a
+            // form that would only bounce back with validation errors.
+            if (!walletInput.value) {
+                setStatus('blocked', 'Pick an e-wallet first', false);
+                return;
+            }
+
+            if (!nameInput.value.trim() || !emailInput.value.trim()) {
+                setStatus('blocked', 'Enter your name and email first', false);
+                return;
+            }
+
+            mockBtn.disabled = true;
+            completePayment();
+        });
     }
 
     // Typing a missing name or email should start the watch without

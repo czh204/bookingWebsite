@@ -645,6 +645,8 @@
                     </div>
                 </div>
 
+                @include('partials.bookingDateField', ['id' => 'adBookingDate'])
+
                 <div class="ad-section-heading"><i class="bi bi-calendar-event me-1"></i> Select Time Slot</div>
                 <div class="d-flex flex-wrap gap-2" id="adSlotList"></div>
 
@@ -756,10 +758,14 @@ document.addEventListener('DOMContentLoaded', function () {
     bookNowBtn.addEventListener('click', function () {
         if (!currentAttraction || !selectedSlotKey) return;
 
+        const bookingDate = window.Voyagr.readBookingDate(document.getElementById('adBookingDate'));
+        if (!bookingDate) return;
+
         window.Voyagr.addToCart({
             type: 'attraction',
             item_id: currentAttraction.id,
             option_key: selectedSlotKey,
+            booking_date: bookingDate,
         }, bookNowBtn);
     });
 

@@ -57,6 +57,19 @@
     .cart-line-title { font-weight: 700; font-size: 1.05rem; color: var(--navy-dark); }
     .cart-line-sub, .cart-line-meta { font-size: .85rem; color: var(--text-muted); }
     .cart-line-qty { font-size: .8rem; color: var(--text-muted); }
+
+    .cart-line-date {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        margin-top: .4rem;
+        background: #eef2f9;
+        border-radius: 999px;
+        padding: .15rem .7rem;
+        font-size: .8rem;
+        font-weight: 600;
+        color: var(--navy);
+    }
     .cart-line-price { font-weight: 700; font-size: 1.15rem; color: var(--navy-dark); text-align: right; white-space: nowrap; }
 
     .btn-remove-line {
@@ -246,6 +259,10 @@
                                 <div class="cart-line-title">{{ $line->title }}</div>
                                 <div class="cart-line-sub">{{ $line->subtitle }}</div>
                                 <div class="cart-line-meta">{{ $line->meta }}</div>
+                                <div class="cart-line-date">
+                                    <i class="bi bi-calendar3"></i>
+                                    {{ \Carbon\Carbon::parse($line->booking_date)->format('D, j M Y') }}
+                                </div>
                                 @if ($line->quantity > 1)
                                     <div class="cart-line-qty">Quantity: {{ $line->quantity }} × ${{ number_format($line->unit_price) }}</div>
                                 @endif

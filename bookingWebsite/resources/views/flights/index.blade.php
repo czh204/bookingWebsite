@@ -530,6 +530,7 @@
             <div class="modal-body">
                 <div class="fd-route-bar" id="fdRouteBar"></div>
                 <div class="fd-highlight"><i class="bi bi-info-circle"></i><span id="fdHighlight"></span></div>
+                @include('partials.bookingDateField', ['id' => 'fdBookingDate'])
                 <h6 class="fd-fare-heading">Select Fare Class</h6>
                 <div id="fdFareList"></div>
             </div>
@@ -641,10 +642,14 @@ document.addEventListener('DOMContentLoaded', function () {
     addToCartBtn.addEventListener('click', function () {
         if (!currentFlight || !selectedFareKey) return;
 
+        const bookingDate = window.Voyagr.readBookingDate(document.getElementById('fdBookingDate'));
+        if (!bookingDate) return;
+
         window.Voyagr.addToCart({
             type: 'flight',
             item_id: currentFlight.id,
             option_key: selectedFareKey,
+            booking_date: bookingDate,
         }, addToCartBtn);
     });
 

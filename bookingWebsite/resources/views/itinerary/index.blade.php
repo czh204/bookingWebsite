@@ -735,6 +735,9 @@
                                 <div class="flex-grow-1">
                                     <div class="booking-item-title">{{ $item->title }}</div>
                                     <div class="booking-item-meta">
+                                        @if ($item->booking_date)
+                                            <strong>{{ $item->booking_date->format('j M Y') }}</strong> ·
+                                        @endif
                                         {{ $item->meta }}@if ($item->quantity > 1) · ×{{ $item->quantity }}@endif
                                     </div>
                                 </div>

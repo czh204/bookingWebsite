@@ -17,12 +17,12 @@ use Carbon\CarbonImmutable;
  * what makes a booking show up there: one event per purchased line, tagged
  * source = 'booking' and pointed back at its order.
  *
- * A note on dates. The cart records *what* was bought, never *when* it is
- * for — there is no date picker feeding it. So only flights have a real
- * service date to use (flights.departure_date); a hotel stay or an
- * attraction visit falls back to the day the booking was made, which is
- * the only date those rows actually carry. Capturing travel dates at
- * add-to-cart time is what would fix that properly.
+ * Dates come from the order line's own booking_date — the day the
+ * customer picked at add-to-cart time. Only the time of day is looked up
+ * from the underlying record (a flight's departure time, a hotel's
+ * check-in, an attraction's slot), since that isn't the customer's to
+ * choose. Rows written before the date picker existed were backfilled to
+ * their order date, so booking_date is always present.
  */
 class BookingItinerary
 {
@@ -68,61 +68,54 @@ class BookingItinerary
     }
 
     /**
-     * The date and time a purchased line belongs on, looked up from the
-     * underlying record rather than stored on the order.
+     * The date and time a purchased line belongs on.
+     *
+     * The date is the customer's chosen booking_date. Only the time of day
+     * is looked up, since that belongs to the product rather than the
+     * booking.
      *
      * @return array{date: string, time: ?string, category: string}
      */
     protected function resolveItem(OrderItem $item, Order $order): array
     {
-        $bookedOn = CarbonImmutable::parse($order->created_at)->toDateString();
+        // Legacy rows predating the picker fall back to the order date,
+        // which is what the calendar used to assume for them anyway.
+        $date = $item->booking_date?->toDateString()
+            ?? CarbonImmutable::parse($order->created_at)->toDateString();
 
         return match ($item->type) {
-            'flight' => $this->resolveFlight($item, $bookedOn),
-            'hotel' => $this->resolveHotel($item, $bookedOn),
-            'attraction' => $this->resolveAttraction($item, $bookedOn),
-            default => ['date' => $bookedOn, 'time' => null, 'category' => 'activity'],
+            'flight' => ['date' => $date, 'time' => $this->flightTime($item), 'category' => 'flight'],
+            'hotel' => ['date' => $date, 'time' => $this->hotelTime($item), 'category' => 'hotel'],
+            'attraction' => ['date' => $date, 'time' => $this->attractionTime($item), 'category' => 'activity'],
+            default => ['date' => $date, 'time' => null, 'category' => 'activity'],
         };
     }
 
-    protected function resolveFlight(OrderItem $item, string $bookedOn): array
+    protected function flightTime(OrderItem $item): ?string
     {
         // find(), not findOrFail(): a receipt outlives the record it points
         // at, so a deleted flight must not break the calendar.
         $flight = Flight::find($item->item_id);
 
-        return [
-            'date' => $flight?->departure_date?->toDateString() ?? $bookedOn,
-            'time' => $flight ? substr((string) $flight->departure_time, 0, 5) : null,
-            'category' => 'flight',
-        ];
+        return $flight ? substr((string) $flight->departure_time, 0, 5) : null;
     }
 
-    protected function resolveHotel(OrderItem $item, string $bookedOn): array
+    protected function hotelTime(OrderItem $item): ?string
     {
         $hotel = Hotel::find($item->item_id);
 
-        return [
-            // Hotels store no stay date — only a daily check-in time.
-            'date' => $bookedOn,
-            'time' => $hotel ? substr((string) $hotel->check_in_time, 0, 5) : null,
-            'category' => 'hotel',
-        ];
+        return $hotel ? substr((string) $hotel->check_in_time, 0, 5) : null;
     }
 
-    protected function resolveAttraction(OrderItem $item, string $bookedOn): array
+    protected function attractionTime(OrderItem $item): ?string
     {
         $slot = Attraction::find($item->item_id)
             ?->timeSlots
             ->firstWhere('slot_key', $item->option_key);
 
-        return [
-            'date' => $bookedOn,
-            // Slots are stored for display ("8:00 AM"), so parse rather
-            // than assume a 24-hour string.
-            'time' => $slot ? $this->parseSlotTime($slot->time_label) : null,
-            'category' => 'activity',
-        ];
+        // Slots are stored for display ("8:00 AM"), so parse rather than
+        // assume a 24-hour string.
+        return $slot ? $this->parseSlotTime($slot->time_label) : null;
     }
 
     protected function parseSlotTime(?string $label): ?string
