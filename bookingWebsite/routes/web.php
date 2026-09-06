@@ -30,16 +30,25 @@ Route::get('/chat/history', [ChatController::class, 'history'])
 Route::get('/attractions', [AttractionController::class, 'index'])->name('attractions.index');
 Route::get('/flights', [FlightController::class, 'index'])->name('flights.index');
 
-// ---------- Cart & checkout ----------
+// ---------- Cart ----------
+// Open to guests: browsing and gathering a cart needs no account. The
+// cart lives in the session, so it survives signing in and is still
+// there on the other side.
 Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
 Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
 Route::delete('/cart/{lineId}', [CartController::class, 'destroy'])->name('cart.destroy');
 Route::post('/cart/promo', [CartController::class, 'applyPromo'])->name('cart.promo');
 
-Route::get('/checkout', [CheckoutController::class, 'show'])->name('checkout.show');
-Route::post('/checkout', [CheckoutController::class, 'pay'])->name('checkout.pay');
-Route::get('/checkout/confirmation/{reference}', [CheckoutController::class, 'confirmation'])
-    ->name('checkout.confirmation');
+// ---------- Checkout ----------
+// Signed in only. Every order belongs to a user, so paying — and reading
+// back the confirmation, which carries an email and billing address —
+// both require an account.
+Route::middleware('auth')->group(function () {
+    Route::get('/checkout', [CheckoutController::class, 'show'])->name('checkout.show');
+    Route::post('/checkout', [CheckoutController::class, 'pay'])->name('checkout.pay');
+    Route::get('/checkout/confirmation/{reference}', [CheckoutController::class, 'confirmation'])
+        ->name('checkout.confirmation');
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'show'])->name('login');

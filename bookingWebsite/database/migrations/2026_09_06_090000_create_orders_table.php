@@ -21,7 +21,12 @@ return new class extends Migration
         Schema::create('orders', function (Blueprint $table) {
             $table->engine = 'InnoDB';
             $table->id();
-            // Nullable: checkout is open to guests, same as the rest of the site.
+            // Every new order has an owner — the checkout routes are behind
+            // auth middleware, so this is always populated in practice. The
+            // column stays nullable for two reasons: nullOnDelete() below
+            // needs it (a closed account shouldn't erase its order history,
+            // which the finance side still needs), and orders placed before
+            // checkout required sign-in would otherwise block the change.
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->string('reference', 20)->unique();
             $table->string('status')->default('confirmed');

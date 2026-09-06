@@ -64,7 +64,11 @@ class AuthController extends Controller
 
         Auth::login($user);
 
-        return redirect()->route('dashboard');
+        // intended() so someone who registered from the checkout gate lands
+        // back on checkout with their cart, rather than on the home page.
+        // (This used to redirect to a `dashboard` route that doesn't exist,
+        // which made every registration end in a RouteNotFoundException.)
+        return redirect()->intended(route('home', absolute: false));
     }
 
     /**

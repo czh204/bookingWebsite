@@ -90,6 +90,17 @@
     .method-tile .name { font-weight: 700; color: var(--navy-dark); font-size: .95rem; }
     .method-tile .sub { font-size: .78rem; color: var(--text-muted); }
 
+    .account-note {
+        background: #eef2f9;
+        border-radius: .6rem;
+        padding: .65rem .9rem;
+        margin-bottom: 1rem;
+        font-size: .84rem;
+        color: #4b5563;
+    }
+
+    .account-note strong { color: var(--navy-dark); }
+
     /* ---------- Form fields ---------- */
     .field-label {
         font-size: .7rem;
@@ -339,19 +350,26 @@
             {{-- ---------- Contact (needed either way) ---------- --}}
             <div class="checkout-card">
                 <h2 class="font-serif fw-bold">Contact Details</h2>
+                {{-- Prefilled from the account, but editable: someone may want
+                     the confirmation sent somewhere other than their login
+                     email, or be booking on another person's behalf. --}}
+                <div class="account-note">
+                    <i class="bi bi-person-check me-1"></i>
+                    Booking as <strong>{{ auth()->user()->name }}</strong> ({{ auth()->user()->email }})
+                </div>
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="field-label" for="customer_name">Full Name</label>
                         <input type="text" id="customer_name" name="customer_name"
                                class="form-control @error('customer_name') is-invalid @enderror"
-                               value="{{ old('customer_name', auth()->user()->name ?? '') }}" placeholder="Alex Johnson">
+                               value="{{ old('customer_name', auth()->user()->name) }}" placeholder="Alex Johnson">
                         @error('customer_name')<div class="field-error">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-6">
                         <label class="field-label" for="customer_email">Email</label>
                         <input type="email" id="customer_email" name="customer_email"
                                class="form-control @error('customer_email') is-invalid @enderror"
-                               value="{{ old('customer_email', auth()->user()->email ?? '') }}" placeholder="alex@example.com">
+                               value="{{ old('customer_email', auth()->user()->email) }}" placeholder="alex@example.com">
                         @error('customer_email')<div class="field-error">{{ $message }}</div>@enderror
                     </div>
                 </div>

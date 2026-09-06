@@ -68,7 +68,14 @@ class CheckoutController extends Controller
 
     public function confirmation(string $reference)
     {
-        $order = Order::with('items')->where('reference', $reference)->firstOrFail();
+        // Scoped to the signed-in user, not just the reference. A booking
+        // reference is short and guessable, and the confirmation shows an
+        // email and billing address — so owning the order is what grants
+        // access, and someone else's reference 404s.
+        $order = Order::with('items')
+            ->where('reference', $reference)
+            ->where('user_id', auth()->id())
+            ->firstOrFail();
 
         return view('cart.confirmation', ['order' => $order]);
     }

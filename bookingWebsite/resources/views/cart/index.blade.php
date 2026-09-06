@@ -158,6 +158,15 @@
 
     .btn-continue:hover { background: var(--cream); color: var(--navy-dark); }
 
+    .signin-note {
+        font-size: .8rem;
+        color: var(--text-muted);
+        text-align: center;
+        margin-top: .6rem;
+    }
+
+    .signin-note a { color: var(--navy-dark); }
+
     .secure-note {
         display: flex;
         gap: .6rem;
@@ -308,11 +317,27 @@
                         @endif
                     </form>
 
-                    <form method="GET" action="{{ route('checkout.show') }}">
-                        <button type="submit" class="btn btn-checkout">
-                            Proceed to Checkout <i class="bi bi-arrow-right ms-1"></i>
-                        </button>
-                    </form>
+                    @auth
+                        <form method="GET" action="{{ route('checkout.show') }}">
+                            <button type="submit" class="btn btn-checkout">
+                                Proceed to Checkout <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                        </form>
+                    @else
+                        {{-- Points at the checkout, not at the login page: the
+                             auth middleware bounces the guest to sign-in and
+                             records /checkout as the intended URL, so they land
+                             back on the checkout afterwards with the cart
+                             intact. Linking straight to login would lose that
+                             and drop them on the home page. --}}
+                        <a href="{{ route('checkout.show') }}" class="btn btn-checkout d-block text-center text-decoration-none">
+                            <i class="bi bi-person me-1"></i> Sign in to Checkout
+                        </a>
+                        <div class="signin-note">
+                            You'll need an account to complete a booking — sign in or
+                            create one on the next page. Your cart is kept either way.
+                        </div>
+                    @endauth
 
                     <a href="{{ route('flights.index') }}" class="btn-continue">Continue Shopping</a>
 
