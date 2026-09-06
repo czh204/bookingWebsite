@@ -42,6 +42,12 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    /** The calendar entries generated for this order — see BookingItinerary. */
+    public function events(): HasMany
+    {
+        return $this->hasMany(ItineraryEvent::class)->orderBy('event_date')->orderBy('start_time');
+    }
+
     /**
      * Customer-facing booking reference, e.g. VYG-7K2M9QX4.
      * Uppercase and unambiguous enough to be read out over the phone.

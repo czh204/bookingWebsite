@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'user_id',
     'trip_id',
+    'order_id',
     'source',
     'category',
     'title',
@@ -33,6 +34,12 @@ class ItineraryEvent extends Model
     public function trip(): BelongsTo
     {
         return $this->belongsTo(Trip::class);
+    }
+
+    /** Set when this entry came from a paid checkout rather than a seeded trip. */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
     }
 
     public function isBooking(): bool

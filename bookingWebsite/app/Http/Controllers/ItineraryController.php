@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ItineraryEvent;
-use App\Models\Trip;
+use App\Models\Order;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -49,13 +49,32 @@ class ItineraryController extends Controller
             'month' => $month,
             'selected' => $selected,
             'weeks' => $this->buildWeeks($month, $selected, $eventsByDate),
-            'aiEvents' => $selectedEvents->where('source', ItineraryEvent::SOURCE_AI)->values(),
+            'plannedEvents' => $selectedEvents->where('source', ItineraryEvent::SOURCE_AI)->values(),
             'bookingEvents' => $selectedEvents->where('source', ItineraryEvent::SOURCE_BOOKING)->values(),
-            'trips' => $this->loadTrips(),
+            'bookings' => $this->loadBookings(),
             'quickQuestions' => self::QUICK_QUESTIONS,
             'categoryColors' => self::CATEGORY_COLORS,
-            'tab' => $request->query('tab') === 'trips' ? 'trips' : 'planner',
+            'view' => $this->resolveView($request),
         ]);
+    }
+
+    /**
+     * Which half of the page to show. Bookings is the landing view — the
+     * calendar and its planner are opened deliberately.
+     *
+     * A ?month= or ?date= in the URL implies the calendar even without
+     * ?view=, so a hand-typed or older link still lands somewhere sensible
+     * rather than on a bookings list that ignores the date it was given.
+     */
+    protected function resolveView(Request $request): string
+    {
+        if ($request->query('view') === 'calendar'
+            || $request->filled('month')
+            || $request->filled('date')) {
+            return 'calendar';
+        }
+
+        return 'bookings';
     }
 
     /**
@@ -122,19 +141,32 @@ class ItineraryController extends Controller
             ->get();
     }
 
-    protected function loadTrips(): Collection
+    /**
+     * Every confirmed order this user has placed, newest first — the "My
+     * Bookings" list under the calendar.
+     *
+     * Unlike the calendar above it, this is not scoped to the visible
+     * month: it's the full booking history, and each row links across to
+     * whichever month its first calendar entry sits in.
+     */
+    protected function loadBookings(): Collection
     {
         if (! auth()->check()) {
             return collect();
         }
 
-        return Trip::query()
+        return Order::query()
             ->where('user_id', auth()->id())
-            // reorder() drops the relation's ORDER BY, which a COUNT
-            // subquery has no use for.
-            ->withCount(['events' => fn ($query) => $query->reorder()])
-            ->orderBy('start_date')
-            ->get();
+            ->with(['items', 'events'])
+            ->latest('created_at')
+            ->get()
+            ->map(function (Order $order) {
+                // The date the calendar would jump to for this booking.
+                $firstEvent = $order->events->first();
+                $order->setAttribute('calendar_date', $firstEvent?->event_date);
+
+                return $order;
+            });
     }
 
     /**

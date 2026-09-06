@@ -1,6 +1,6 @@
 @extends('layouts.homeApp')
 
-@section('title', 'Itinerary Planner')
+@section('title', 'My Bookings')
 
 @push('styles')
 <style>
@@ -56,37 +56,79 @@
         top: 1.5rem;
     }
 
-    .planner-tabs {
-        display: flex;
+    .planner-panel-header {
         border-bottom: 1px solid var(--border-soft);
+        background: var(--cream);
+        padding: .85rem 1rem;
+        font-size: .92rem;
+        font-weight: 700;
+        color: var(--navy-dark);
+        display: flex;
+        align-items: center;
+        gap: .45rem;
         flex-shrink: 0;
     }
 
-    .planner-tab {
-        flex: 1;
-        background: var(--cream);
-        border: none;
-        border-bottom: 2px solid transparent;
-        padding: .85rem .5rem;
-        font-size: .88rem;
-        font-weight: 600;
-        color: var(--text-muted);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: .4rem;
-    }
-
-    .planner-tab:hover { color: var(--navy-dark); }
-
-    .planner-tab.active {
-        background: #fff;
-        color: var(--navy-dark);
-        border-bottom-color: var(--navy);
-    }
+    .planner-panel-header i { color: var(--navy); }
 
     .planner-tab-pane { flex: 1; display: none; flex-direction: column; min-height: 0; }
     .planner-tab-pane.active { display: flex; }
+
+    /* ---------- View switch (bookings ↔ calendar) ---------- */
+    .view-switch {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap;
+        background: #fff;
+        border: 1px solid var(--border-soft);
+        border-radius: .9rem;
+        padding: .4rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .view-switch-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        border-radius: .6rem;
+        padding: .6rem 1.1rem;
+        font-size: .9rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-decoration: none;
+    }
+
+    .view-switch-btn:hover { background: var(--cream); color: var(--navy-dark); }
+
+    .view-switch-btn.active {
+        background: var(--navy);
+        color: #fff;
+    }
+
+    .view-switch-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        background: #e7eefb;
+        color: #2563eb;
+        font-size: .7rem;
+        padding: .1rem .4rem;
+    }
+
+    .view-switch-btn.active .view-switch-badge { background: rgba(255,255,255,.2); color: #fff; }
+
+    /* Marks the AI planner as living inside this page. */
+    .hero-ai-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        background: rgba(255,255,255,.15);
+        border: 1px solid rgba(255,255,255,.3);
+        border-radius: 999px;
+        padding: .05rem .6rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
 
     /* ---------- AI planner chat (display only for now) ---------- */
     .planner-quick {
@@ -196,66 +238,6 @@
         text-align: center;
         padding: .5rem 1rem 0;
     }
-
-    /* ---------- My Trips ---------- */
-    .trips-list { flex: 1; overflow-y: auto; padding: 1rem; }
-
-    .trip-card {
-        border: 1px solid var(--border-soft);
-        border-radius: .7rem;
-        padding: .9rem 1rem;
-        margin-bottom: .75rem;
-        background: #fff;
-    }
-
-    .trip-card:last-child { margin-bottom: 0; }
-    .trip-card .trip-title { font-weight: 700; color: var(--navy-dark); font-size: .95rem; }
-
-    .trip-card .trip-meta {
-        font-size: .8rem;
-        color: var(--text-muted);
-        display: flex;
-        flex-wrap: wrap;
-        gap: .25rem .75rem;
-        margin-top: .35rem;
-    }
-
-    .trip-status {
-        border-radius: 999px;
-        font-size: .7rem;
-        font-weight: 700;
-        padding: .12rem .6rem;
-        text-transform: uppercase;
-        letter-spacing: .03em;
-    }
-
-    .status-upcoming { background: #dbe8fd; color: #2563eb; }
-    .status-completed { background: #e6e6e6; color: #4b5563; }
-    .status-cancelled { background: #fde3e3; color: #b91c1c; }
-
-    .trip-card-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-top: .7rem;
-        padding-top: .7rem;
-        border-top: 1px solid var(--border-soft);
-    }
-
-    .trip-ref { font-size: .75rem; color: var(--text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .trip-total { font-weight: 700; color: var(--navy-dark); }
-
-    .btn-view-trip-days {
-        background: none;
-        border: none;
-        color: var(--navy);
-        font-size: .8rem;
-        font-weight: 600;
-        text-decoration: none;
-        padding: 0;
-    }
-
-    .btn-view-trip-days:hover { text-decoration: underline; }
 
     /* ---------- Calendar ---------- */
     .calendar-header {
@@ -414,6 +396,97 @@
         white-space: nowrap;
     }
 
+    /* ---------- My Bookings ---------- */
+    .bookings-card { margin-top: 1.25rem; padding: 1.25rem; }
+    .bookings-title { font-size: 1.2rem; color: var(--navy-dark); margin: 0; }
+    .bookings-count { font-size: .82rem; color: var(--text-muted); }
+    .bookings-subtitle { font-size: .85rem; color: var(--text-muted); margin: 0 0 1rem; }
+
+    .booking-row {
+        border: 1px solid var(--border-soft);
+        border-radius: .7rem;
+        padding: .95rem 1rem;
+    }
+
+    .booking-row + .booking-row { margin-top: .75rem; }
+
+    .booking-row-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+
+    .booking-ref {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-weight: 700;
+        color: var(--navy-dark);
+        margin-right: .5rem;
+    }
+
+    .booking-status {
+        border-radius: 999px;
+        font-size: .68rem;
+        font-weight: 700;
+        padding: .12rem .6rem;
+        text-transform: uppercase;
+        letter-spacing: .03em;
+    }
+
+    .status-confirmed { background: #dcf3e6; color: #16a34a; }
+    .status-cancelled { background: #fde3e3; color: #b91c1c; }
+    .status-refunded { background: #ecebe6; color: #4b5563; }
+
+    .booking-total { font-weight: 700; font-size: 1.1rem; color: var(--navy-dark); }
+
+    .booking-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem .9rem;
+        font-size: .8rem;
+        color: var(--text-muted);
+        margin: .4rem 0 .75rem;
+    }
+
+    .booking-item {
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        padding: .5rem 0;
+        border-top: 1px solid var(--border-soft);
+    }
+
+    .booking-item-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: .5rem;
+        background: #e7eefb;
+        color: #2563eb;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .85rem;
+        flex-shrink: 0;
+    }
+
+    .booking-item-title { font-weight: 600; color: var(--navy-dark); font-size: .88rem; }
+    .booking-item-meta { font-size: .78rem; color: var(--text-muted); }
+    .booking-item-price { font-weight: 600; color: var(--navy-dark); font-size: .88rem; white-space: nowrap; }
+
+    .booking-jump {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        margin-top: .75rem;
+        font-size: .82rem;
+        font-weight: 600;
+        color: var(--navy);
+        text-decoration: none;
+    }
+
+    .booking-jump:hover { text-decoration: underline; }
+
     /* ---------- Empty states ---------- */
     .planner-empty {
         text-align: center;
@@ -432,45 +505,57 @@
 @endpush
 
 @php
-    // Month nav keeps the tab you're on but drops ?date=, since the
+    // Calendar links carry view=calendar so following one never bounces
+    // back to the bookings list. Month nav drops ?date=, since the
     // selected day never belongs to a different month.
-    $navQuery = fn (string $ym) => array_filter(['month' => $ym, 'tab' => $tab === 'trips' ? 'trips' : null]);
+    $navQuery = fn (string $ym) => ['view' => 'calendar', 'month' => $ym];
 @endphp
 
 @section('content')
 
 {{-- ================= HERO ================= --}}
 <section class="planner-hero">
-    <div class="mx-auto d-flex justify-content-between align-items-start gap-3" style="max-width: 1240px;">
+    <div class="mx-auto d-flex justify-content-between align-items-start gap-3 flex-wrap" style="max-width: 1240px;">
         <div>
-            <h1 class="font-serif fw-bold">Itinerary Planner</h1>
-            <p>AI-planned trips and your booked experiences in one calendar</p>
+            <h1 class="font-serif fw-bold">My Bookings</h1>
         </div>
-        <button type="button" class="btn btn-toggle-panel" id="togglePanelBtn">
-            <i class="bi bi-x-lg me-1" id="togglePanelIcon"></i><span id="togglePanelLabel">Hide Panel</span>
-        </button>
+        @if ($view === 'calendar')
+            <button type="button" class="btn btn-toggle-panel" id="togglePanelBtn">
+                <i class="bi bi-x-lg me-1" id="togglePanelIcon"></i><span id="togglePanelLabel">Hide Planner</span>
+            </button>
+        @endif
     </div>
 </section>
 
 {{-- ================= BODY ================= --}}
 <div class="planner-body" id="plannerBody">
-    <div class="row g-4">
+
+    {{-- View switch: bookings is where you land, the calendar (and the AI
+         planner that lives beside it) is opened on purpose. --}}
+    <div class="view-switch">
+        <a href="{{ route('itinerary.index') }}"
+           class="view-switch-btn {{ $view === 'bookings' ? 'active' : '' }}">
+            <i class="bi bi-receipt"></i> My Bookings
+        </a>
+        <a href="{{ route('itinerary.index', ['view' => 'calendar']) }}"
+           class="view-switch-btn {{ $view === 'calendar' ? 'active' : '' }}">
+            <i class="bi bi-calendar3"></i> Calendar &amp; AI Planner
+            <span class="view-switch-badge"><i class="bi bi-stars"></i></span>
+        </a>
+    </div>
+
+    <div class="row g-4 {{ $view === 'calendar' ? '' : 'd-none' }}">
 
         {{-- ---------- Left panel ---------- --}}
         <div class="col-lg-4 planner-panel-col">
             <div class="planner-card planner-panel">
 
-                <div class="planner-tabs">
-                    <button type="button" class="planner-tab {{ $tab === 'planner' ? 'active' : '' }}" data-pane="pane-planner">
-                        <i class="bi bi-stars"></i> AI Planner
-                    </button>
-                    <button type="button" class="planner-tab {{ $tab === 'trips' ? 'active' : '' }}" data-pane="pane-trips">
-                        <i class="bi bi-calendar-check"></i> My Trips
-                    </button>
+                <div class="planner-panel-header">
+                    <i class="bi bi-stars"></i> AI Planner
                 </div>
 
-                {{-- ----- AI Planner tab (UI only — no assistant wired up yet) ----- --}}
-                <div class="planner-tab-pane {{ $tab === 'planner' ? 'active' : '' }}" id="pane-planner">
+                {{-- UI only — no assistant wired up yet. --}}
+                <div class="planner-tab-pane active" id="pane-planner">
                     <div class="planner-quick">
                         <div class="planner-quick-label">Quick Questions</div>
                         @foreach ($quickQuestions as $question)
@@ -497,47 +582,6 @@
                         <button type="button" class="planner-send-btn" disabled aria-label="Send">
                             <i class="bi bi-send-fill"></i>
                         </button>
-                    </div>
-                </div>
-
-                {{-- ----- My Trips tab ----- --}}
-                <div class="planner-tab-pane {{ $tab === 'trips' ? 'active' : '' }}" id="pane-trips">
-                    <div class="trips-list">
-                        @forelse ($trips as $trip)
-                            <div class="trip-card">
-                                <div class="d-flex justify-content-between align-items-start gap-2">
-                                    <div class="trip-title">{{ $trip->title }}</div>
-                                    <span class="trip-status status-{{ $trip->status }}">{{ $trip->status }}</span>
-                                </div>
-                                <div class="trip-meta">
-                                    <span><i class="bi bi-geo-alt"></i> {{ $trip->destination }}</span>
-                                    <span><i class="bi bi-calendar3"></i> {{ $trip->date_range_label }}</span>
-                                    <span><i class="bi bi-moon"></i> {{ $trip->nights }} night{{ $trip->nights === 1 ? '' : 's' }}</span>
-                                </div>
-                                <div class="trip-card-footer">
-                                    <div>
-                                        <div class="trip-ref">{{ $trip->booking_reference }}</div>
-                                        {{-- Jumps the calendar to the month and day this trip starts. --}}
-                                        <a class="btn-view-trip-days"
-                                           href="{{ route('itinerary.index', ['month' => $trip->start_date->format('Y-m'), 'date' => $trip->start_date->toDateString(), 'tab' => 'trips']) }}">
-                                            View on calendar ({{ $trip->events_count }} item{{ $trip->events_count === 1 ? '' : 's' }})
-                                        </a>
-                                    </div>
-                                    @if ($trip->total_price !== null)
-                                        <div class="trip-total">${{ number_format($trip->total_price) }}</div>
-                                    @endif
-                                </div>
-                            </div>
-                        @empty
-                            <div class="planner-empty">
-                                <i class="bi bi-suitcase"></i>
-                                @guest
-                                    <a href="{{ route('login') }}">Sign in</a> to see your booked trips here.
-                                @else
-                                    No booked trips yet. Anything you book will show up here.
-                                @endguest
-                            </div>
-                        @endforelse
                     </div>
                 </div>
 
@@ -586,7 +630,7 @@
                 </div>
 
                 <div class="calendar-legend">
-                    <span><i class="calendar-dot dot-ai"></i> AI planned</span>
+                    <span><i class="calendar-dot dot-ai"></i> Planned event</span>
                     <span><i class="calendar-dot dot-booking"></i> My booking</span>
                 </div>
             </div>
@@ -597,7 +641,7 @@
                     <div>
                         <div class="day-detail-date">{{ $selected->format('F j, Y') }}</div>
                         <div class="day-detail-count">
-                            {{ $aiEvents->count() }} AI event{{ $aiEvents->count() === 1 ? '' : 's' }}
+                            {{ $plannedEvents->count() }} planned event{{ $plannedEvents->count() === 1 ? '' : 's' }}
                             · {{ $bookingEvents->count() }} booking{{ $bookingEvents->count() === 1 ? '' : 's' }}
                         </div>
                     </div>
@@ -626,9 +670,9 @@
                     @endforeach
                 @endif
 
-                @if ($aiEvents->isNotEmpty())
-                    <div class="day-group-label"><i class="bi bi-stars"></i> AI Planned</div>
-                    @foreach ($aiEvents as $event)
+                @if ($plannedEvents->isNotEmpty())
+                    <div class="day-group-label"><i class="bi bi-stars"></i> Planned Events</div>
+                    @foreach ($plannedEvents as $event)
                         <div class="day-event">
                             <div class="day-event-time">{{ $event->time_label }}</div>
                             <div class="day-event-accent" style="background: {{ $categoryColors[$event->category] ?? '#2563eb' }};"></div>
@@ -642,7 +686,7 @@
                     @endforeach
                 @endif
 
-                @if ($aiEvents->isEmpty() && $bookingEvents->isEmpty())
+                @if ($plannedEvents->isEmpty() && $bookingEvents->isEmpty())
                     <div class="planner-empty">
                         <i class="bi bi-calendar-x"></i>
                         @guest
@@ -653,8 +697,73 @@
                     </div>
                 @endif
             </div>
+
         </div>
 
+    </div>
+
+    {{-- ================= MY BOOKINGS (landing view) ================= --}}
+    <div class="planner-card bookings-card {{ $view === 'bookings' ? '' : 'd-none' }}" id="myBookings">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+            @auth
+                <span class="bookings-count">
+                    {{ $bookings->count() }} booking{{ $bookings->count() === 1 ? '' : 's' }}
+                </span>
+            @endauth
+        </div>
+                @forelse ($bookings as $booking)
+                    <div class="booking-row">
+                        <div class="booking-row-head">
+                            <div>
+                                <span class="booking-ref">{{ $booking->reference }}</span>
+                                <span class="booking-status status-{{ $booking->status }}">{{ $booking->status }}</span>
+                            </div>
+                            <div class="booking-total">${{ number_format($booking->total, 2) }}</div>
+                        </div>
+
+                        <div class="booking-meta">
+                            <span><i class="bi bi-calendar3"></i> Booked {{ $booking->created_at->format('j M Y') }}</span>
+                            <span><i class="bi bi-credit-card"></i> {{ $booking->payment_label }}</span>
+                            <span><i class="bi bi-bag"></i> {{ $booking->items->count() }} item{{ $booking->items->count() === 1 ? '' : 's' }}</span>
+                        </div>
+
+                        @foreach ($booking->items as $item)
+                            <div class="booking-item">
+                                <span class="booking-item-icon">
+                                    <i class="bi {{ ['flight' => 'bi-airplane', 'hotel' => 'bi-building', 'attraction' => 'bi-ticket-perforated'][$item->type] ?? 'bi-dot' }}"></i>
+                                </span>
+                                <div class="flex-grow-1">
+                                    <div class="booking-item-title">{{ $item->title }}</div>
+                                    <div class="booking-item-meta">
+                                        {{ $item->meta }}@if ($item->quantity > 1) · ×{{ $item->quantity }}@endif
+                                    </div>
+                                </div>
+                                <div class="booking-item-price">${{ number_format($item->line_total, 2) }}</div>
+                            </div>
+                        @endforeach
+
+                        @if ($booking->calendar_date)
+                            {{-- Opens the calendar view on the month and day
+                                 this booking's first entry sits on. --}}
+                            <a class="booking-jump"
+                               href="{{ route('itinerary.index', ['view' => 'calendar', 'month' => $booking->calendar_date->format('Y-m'), 'date' => $booking->calendar_date->toDateString()]) }}">
+                                <i class="bi bi-calendar-check"></i>
+                                Show on calendar — {{ $booking->calendar_date->format('j M Y') }}
+                            </a>
+                        @endif
+                    </div>
+                @empty
+                    <div class="planner-empty">
+                        <i class="bi bi-receipt"></i>
+                        @guest
+                            <a href="{{ route('login') }}">Sign in</a> to see your bookings here.
+                        @else
+                            No bookings yet.
+                            <a href="{{ route('flights.index') }}">Find something to book</a>
+                            and it'll appear here and on the calendar.
+                        @endguest
+                    </div>
+                @endforelse
     </div>
 </div>
 
@@ -663,28 +772,22 @@
 @push('scripts')
 <script>
 (function () {
-    // ----- Panel tabs -----
-    document.querySelectorAll('.planner-tab').forEach(function (tab) {
-        tab.addEventListener('click', function () {
-            document.querySelectorAll('.planner-tab').forEach(function (t) { t.classList.remove('active'); });
-            document.querySelectorAll('.planner-tab-pane').forEach(function (p) { p.classList.remove('active'); });
-
-            tab.classList.add('active');
-            document.getElementById(tab.dataset.pane).classList.add('active');
-        });
-    });
-
-    // ----- Hide / show panel -----
+    // ----- Hide / show the AI planner panel -----
+    // Only rendered in the calendar view, so bail out on the bookings
+    // view rather than throwing on a missing button.
     var body = document.getElementById('plannerBody');
     var btn = document.getElementById('togglePanelBtn');
+
+    if (!btn) return;
+
     var icon = document.getElementById('togglePanelIcon');
     var label = document.getElementById('togglePanelLabel');
 
     btn.addEventListener('click', function () {
         var hidden = body.classList.toggle('panel-hidden');
 
-        icon.className = hidden ? 'bi bi-layout-sidebar me-1' : 'bi bi-x-lg me-1';
-        label.textContent = hidden ? 'Show Panel' : 'Hide Panel';
+        icon.className = hidden ? 'bi bi-stars me-1' : 'bi bi-x-lg me-1';
+        label.textContent = hidden ? 'Show Planner' : 'Hide Planner';
     });
 })();
 </script>
