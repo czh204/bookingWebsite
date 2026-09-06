@@ -13,7 +13,17 @@
     </div>
  
     <div class="d-flex align-items-center gap-3">
-        <a href="{{ url('/cart') }}" class="text-dark fs-5 position-relative"><i class="bi bi-cart3"></i></a>
+        @php
+            // Read straight from the cart service so every page's navbar
+            // shows the live count without each controller passing it in.
+            $cartCount = app(\App\Services\Cart::class)->count();
+        @endphp
+        <a href="{{ route('cart.index') }}" class="text-dark fs-5 position-relative {{ request()->is('cart*') || request()->is('checkout*') ? 'cart-link-active' : '' }}">
+            <i class="bi bi-cart3"></i>
+            @if ($cartCount > 0)
+                <span class="cart-count-badge">{{ $cartCount }}</span>
+            @endif
+        </a>
  
         @auth
             {{-- Logged-in: show avatar + name with a dropdown --}}
