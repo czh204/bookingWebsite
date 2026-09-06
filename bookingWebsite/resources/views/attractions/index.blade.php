@@ -754,14 +754,13 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     bookNowBtn.addEventListener('click', function () {
-        if (bookNowBtn.disabled) return;
-        const original = bookNowBtn.innerHTML;
-        bookNowBtn.innerHTML = 'Booked <i class="bi bi-check-lg"></i>';
-        bookNowBtn.disabled = true;
-        setTimeout(function () {
-            bookNowBtn.innerHTML = original;
-            bookNowBtn.disabled = false;
-        }, 1500);
+        if (!currentAttraction || !selectedSlotKey) return;
+
+        window.Voyagr.addToCart({
+            type: 'attraction',
+            item_id: currentAttraction.id,
+            option_key: selectedSlotKey,
+        }, bookNowBtn);
     });
 
     document.querySelectorAll('.js-view-attraction').forEach(function (btn, index) {

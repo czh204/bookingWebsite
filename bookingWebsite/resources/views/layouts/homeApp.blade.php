@@ -101,6 +101,31 @@
             font-weight: 700;
         }
  
+        /* ---------- Cart badge ---------- */
+        .cart-count-badge {
+            position: absolute;
+            top: -6px;
+            right: -8px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 4px;
+            border-radius: 999px;
+            background: var(--gold);
+            color: var(--navy-dark);
+            font-size: .68rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .cart-link-active {
+            background: #e7ecf5;
+            border-radius: .5rem;
+            padding: .25rem .5rem;
+        }
+
         /* ---------- Support chat widget ---------- */
         .chat-bubble-btn {
             position: fixed;
@@ -321,6 +346,7 @@
     @include('partials.chatWidget')
  
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    @include('partials.cartClient')
     @stack('scripts')
 </body>
 </html>

@@ -639,14 +639,13 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     addToCartBtn.addEventListener('click', function () {
-        if (addToCartBtn.disabled) return;
-        const original = addToCartBtn.innerHTML;
-        addToCartBtn.innerHTML = 'Added <i class="bi bi-check-lg"></i>';
-        addToCartBtn.disabled = true;
-        setTimeout(function () {
-            addToCartBtn.innerHTML = original;
-            addToCartBtn.disabled = false;
-        }, 1500);
+        if (!currentFlight || !selectedFareKey) return;
+
+        window.Voyagr.addToCart({
+            type: 'flight',
+            item_id: currentFlight.id,
+            option_key: selectedFareKey,
+        }, addToCartBtn);
     });
 
     document.querySelectorAll('.js-select-flight').forEach(function (btn) {

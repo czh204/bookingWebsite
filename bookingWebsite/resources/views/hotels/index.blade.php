@@ -737,14 +737,13 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     bookRoomBtn.addEventListener('click', function () {
-        if (bookRoomBtn.disabled) return;
-        const original = bookRoomBtn.innerHTML;
-        bookRoomBtn.innerHTML = 'Booked <i class="bi bi-check-lg"></i>';
-        bookRoomBtn.disabled = true;
-        setTimeout(function () {
-            bookRoomBtn.innerHTML = original;
-            bookRoomBtn.disabled = false;
-        }, 1500);
+        if (!currentHotel || !selectedRoomKey) return;
+
+        window.Voyagr.addToCart({
+            type: 'hotel',
+            item_id: currentHotel.id,
+            option_key: selectedRoomKey,
+        }, bookRoomBtn);
     });
 
     document.querySelectorAll('.js-view-hotel').forEach(function (btn, index) {
