@@ -172,108 +172,31 @@
     .quick-link-card h3 { font-size: 1.05rem; color: var(--navy-dark); margin-bottom: .2rem; }
     .quick-link-card p  { font-size: .85rem; color: var(--text-muted); margin: 0; }
  
-    /* ---------- Destinations ---------- */
-    .destinations { padding: 2rem 1.5rem 5rem; max-width: 1180px; margin: 0 auto; }
- 
-    .section-eyebrow {
-        font-size: .8rem;
-        font-weight: 700;
-        letter-spacing: .06em;
-        text-transform: uppercase;
-        color: var(--gold);
-        margin-bottom: .35rem;
-    }
- 
-    .section-title { font-size: 1.9rem; color: var(--navy-dark); margin-bottom: 0; }
- 
-    .view-all-link {
-        color: var(--navy);
-        font-weight: 600;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-    }
- 
-    .destination-card {
-        position: relative;
-        border-radius: .9rem;
-        overflow: hidden;
-        aspect-ratio: 4 / 3;
-        background-size: cover;
-        background-position: center;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        color: #fff;
-        text-decoration: none;
-    }
- 
-    .destination-card::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.65) 100%);
-        z-index: 0;
-    }
-
-    /* Photo placeholders (no real destination photos yet) */
-    .destination-card.ph-1 { background-image: linear-gradient(135deg, #3b5b8f, #1e2a45); }
-    .destination-card.ph-2 { background-image: linear-gradient(135deg, #2f8f6e, #16532f); }
-    .destination-card.ph-3 { background-image: linear-gradient(135deg, #b3502f, #7a2e12); }
-    .destination-card.ph-4 { background-image: linear-gradient(135deg, #5a4a8f, #2c1f57); }
-    .destination-card.ph-5 { background-image: linear-gradient(135deg, #b7791f, #7a4e0f); }
-    .destination-card.ph-6 { background-image: linear-gradient(135deg, #2f7f8f, #163f57); }
-
-    .destination-photo-icon {
-        position: relative;
-        z-index: 0;
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.2rem;
-        color: rgba(255,255,255,.35);
-    }
- 
-    .destination-badge, .destination-info {
-        position: relative;
-        z-index: 1;
-    }
- 
-    .destination-badge {
-        align-self: flex-start;
-        margin: .8rem;
-        background: rgba(0,0,0,.5);
-        border-radius: 999px;
-        padding: .3rem .8rem;
-        font-size: .75rem;
-        font-weight: 600;
-    }
- 
-    .destination-info { padding: 1rem; }
-    .destination-info h4 { font-size: 1.15rem; margin-bottom: .1rem; }
-    .destination-info .country { font-size: .85rem; opacity: .85; }
-    .destination-info .price { color: var(--gold); font-weight: 700; font-size: .9rem; }
- 
     /* ---------- AI CTA ---------- */
+    /* Sits on the page background rather than a navy band, so the navy
+       now belongs to the footer below it. */
     .ai-cta {
-        background: var(--navy);
-        color: #fff;
+        background: var(--cream);
+        color: var(--navy-dark);
         text-align: center;
         padding: 4.5rem 1.5rem;
     }
- 
-    .ai-cta .hero-badge { background: rgba(255,255,255,.08); }
- 
+
+    /* The badge is built for a dark band, so it needs dark-on-light here. */
+    .ai-cta .hero-badge {
+        background: rgba(30,42,69,.06);
+        border-color: rgba(30,42,69,.18);
+        color: var(--navy);
+    }
+
     .ai-cta h2 {
         font-size: 2.3rem;
         max-width: 38rem;
         margin: 0 auto 1rem;
         line-height: 1.25;
     }
- 
-    .ai-cta p { max-width: 34rem; margin: 0 auto 2rem; opacity: .85; }
+
+    .ai-cta p { max-width: 34rem; margin: 0 auto 2rem; color: var(--text-muted); }
  
     .btn-gold {
         background: var(--gold);
@@ -290,27 +213,6 @@
  
     .btn-gold:hover { background: #c99a2f; color: var(--navy-dark); }
  
-    /* ---------- Trust badges ---------- */
-    .trust-section {
-        background: #fff;
-        padding: 3.5rem 1.5rem;
-    }
- 
-    .trust-icon {
-        width: 52px;
-        height: 52px;
-        border-radius: 50%;
-        background: #f1f0ec;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.3rem;
-        color: var(--navy);
-        margin: 0 auto 1rem;
-    }
- 
-    .trust-item h5 { font-weight: 700; color: var(--navy-dark); }
-    .trust-item p { color: var(--text-muted); font-size: .9rem; max-width: 18rem; margin: .25rem auto 0; }
 </style>
 @endpush
  
@@ -453,61 +355,16 @@
     </div>
 </section>
  
-{{-- ================= POPULAR DESTINATIONS ================= --}}
-<section class="destinations">
-    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
-        <div>
-            <div class="section-eyebrow">Explore the World</div>
-            <h2 class="font-serif fw-bold section-title">Popular Destinations</h2>
-        </div>
-        <a href="{{ url('/destinations') }}" class="view-all-link">View all <i class="bi bi-arrow-right"></i></a>
-    </div>
- 
-    <div class="row g-3">
-        @foreach ($destinations as $index => $destination)
-            <div class="col-md-4">
-                <a href="{{ url('/destinations/' . \Illuminate\Support\Str::slug($destination['city'])) }}"
-                   class="destination-card ph-{{ ($index % 6) + 1 }}">
-                    <span class="destination-badge">{{ $destination['badge'] }}</span>
-                    <i class="bi bi-image destination-photo-icon"></i>
-                    <div class="destination-info">
-                        <h4 class="font-serif">{{ $destination['city'] }}</h4>
-                        <div class="country">{{ $destination['country'] }}</div>
-                        <div class="price">from ${{ number_format($destination['price']) }}</div>
-                    </div>
-                </a>
-            </div>
-        @endforeach
-    </div>
-</section>
- 
 {{-- ================= AI CTA ================= --}}
 <section class="ai-cta">
     <span class="hero-badge"><i class="bi bi-stars"></i> Powered by AI</span>
     <h2 class="font-serif fw-bold">Let AI Build Your Perfect Itinerary</h2>
     <p>Chat with our AI travel assistant to create personalized day-by-day plans, discover hidden gems, and organize everything in one place.</p>
-    <a href="{{ url('/ai-planner') }}" class="btn-gold">Start Planning <i class="bi bi-arrow-right"></i></a>
-</section>
- 
-{{-- ================= TRUST BADGES ================= --}}
-<section class="trust-section">
-    <div class="row text-center g-4 max-w-100" style="max-width: 1180px; margin: 0 auto;">
-        <div class="col-md-4 trust-item">
-            <div class="trust-icon"><i class="bi bi-shield-check"></i></div>
-            <h5>Secure Booking</h5>
-            <p>Bank-level encryption protects every transaction</p>
-        </div>
-        <div class="col-md-4 trust-item">
-            <div class="trust-icon"><i class="bi bi-star"></i></div>
-            <h5>4.9/5 Rating</h5>
-            <p>Trusted by over 2 million happy travellers</p>
-        </div>
-        <div class="col-md-4 trust-item">
-            <div class="trust-icon"><i class="bi bi-clock"></i></div>
-            <h5>24/7 Support</h5>
-            <p>AI chatbot and human agents always available</p>
-        </div>
-    </div>
+    {{-- Straight into the calendar view, where the AI planner panel sits,
+         rather than the My Bookings list the page otherwise opens on. --}}
+    <a href="{{ route('itinerary.index', ['view' => 'calendar']) }}" class="btn-gold">
+        Start Planning <i class="bi bi-arrow-right"></i>
+    </a>
 </section>
  
 @endsection
