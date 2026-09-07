@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'title',
     'category',
+    'image_path',
     'city',
     'country',
     'location_label',

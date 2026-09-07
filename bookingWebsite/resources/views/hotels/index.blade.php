@@ -162,6 +162,9 @@
         font-size: 2rem;
     }
 
+    .hotel-thumb img,
+    .hd-carousel-slide img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
     .hotel-thumb-badge {
         position: absolute;
         top: .6rem;
@@ -238,7 +241,11 @@
     /* ---------- Hotel detail modal ---------- */
     .hotel-modal-content { border-radius: .9rem; border: none; overflow: hidden; }
 
-    .hd-carousel { position: relative; height: 260px; }
+    /* flex-shrink:0 is load-bearing: .modal-content is a flex column with
+       max-height:100%, so without it the carousel gets squashed to 0px and
+       its absolutely-positioned badge, close button and arrows spill over
+       the hotel name below. */
+    .hd-carousel { position: relative; height: 260px; flex-shrink: 0; }
     .hd-carousel-slide {
         position: absolute;
         inset: 0;
@@ -279,43 +286,8 @@
         justify-content: center;
     }
 
-    .hd-carousel-arrow {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        z-index: 2;
-        background: rgba(0,0,0,.45);
-        border: none;
-        color: #fff;
-        width: 34px;
-        height: 34px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .hd-carousel-arrow.prev { left: .75rem; }
-    .hd-carousel-arrow.next { right: .75rem; }
-
-    .hd-carousel-dots {
-        position: absolute;
-        bottom: .75rem;
-        left: .85rem;
-        z-index: 2;
-        display: flex;
-        gap: .3rem;
-    }
-
-    .hd-carousel-dots span {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: rgba(255,255,255,.5);
-    }
-
-    .hd-carousel-dots span.active { background: #fff; }
-
+    /* Overrides Bootstrap's .modal-body padding; both are single classes,
+       so this wins on source order (our styles load after the CDN). */
     .hd-body { padding: 1.25rem; }
     .hd-name-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
     .hd-name { font-size: 1.4rem; font-weight: 700; color: var(--navy-dark); }
@@ -518,11 +490,15 @@
 
             @forelse ($hotels as $index => $hotel)
                 <div class="hotel-card">
-                    <div class="hotel-thumb ph-{{ ($index % 6) + 1 }}">
+                    <div class="hotel-thumb {{ $hotel->image ? '' : 'ph-'.$hotel->placeholder_shade }}">
                         @if ($hotel->badge)
                             <span class="hotel-thumb-badge">{{ $hotel->badge }}</span>
                         @endif
-                        <i class="bi bi-image"></i>
+                        @if ($hotel->image)
+                            <img src="{{ $hotel->image }}" alt="{{ $hotel->name }}" loading="lazy">
+                        @else
+                            <i class="bi bi-image"></i>
+                        @endif
                     </div>
 
                     <div class="hotel-info">
@@ -568,13 +544,14 @@
             <div class="hd-carousel" id="hdCarousel">
                 <span class="hd-carousel-badge" id="hdCarouselBadge"></span>
                 <button type="button" class="hd-carousel-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
-                <button type="button" class="hd-carousel-arrow prev" id="hdPrevSlide"><i class="bi bi-chevron-left"></i></button>
-                <button type="button" class="hd-carousel-arrow next" id="hdNextSlide"><i class="bi bi-chevron-right"></i></button>
-                <div class="hd-carousel-dots" id="hdCarouselDots"></div>
                 <div id="hdCarouselSlides"></div>
             </div>
 
-            <div class="hd-body">
+            {{-- modal-body is required, not decorative: modal-dialog-scrollable
+                 only makes a .modal-body scrollable. Without it the content was
+                 clipped by .modal-content's overflow:hidden with no scrollbar,
+                 and the footer's Book Room button sat outside the viewport. --}}
+            <div class="modal-body hd-body">
                 <div class="hd-name-row">
                     <div class="hd-name" id="hdName"></div>
                 </div>
@@ -634,8 +611,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const bookRoomBtn = document.getElementById('hdBookRoom');
     let currentHotel = null;
     let selectedRoomKey = null;
-    let currentSlide = 0;
-    const slideCount = 3;
 
     function escapeHtml(str) {
         const div = document.createElement('div');
@@ -643,35 +618,16 @@ document.addEventListener('DOMContentLoaded', function () {
         return div.innerHTML;
     }
 
-    function renderCarousel(hotel, index) {
-        const shades = ['ph-1', 'ph-2', 'ph-3', 'ph-4', 'ph-5', 'ph-6'];
-        const slidesEl = document.getElementById('hdCarouselSlides');
-        const dotsEl = document.getElementById('hdCarouselDots');
-        let slidesHtml = '';
-        let dotsHtml = '';
-        for (let i = 0; i < slideCount; i++) {
-            const shade = shades[(index + i) % shades.length];
-            slidesHtml += `<div class="hd-carousel-slide ${shade} ${i === 0 ? 'active' : ''}" data-slide="${i}"><i class="bi bi-image"></i></div>`;
-            dotsHtml += `<span class="${i === 0 ? 'active' : ''}"></span>`;
-        }
-        slidesEl.innerHTML = slidesHtml;
-        dotsEl.innerHTML = dotsHtml;
-        currentSlide = 0;
-        document.getElementById('hdCarouselBadge').textContent = hotel.badge || '';
-        document.getElementById('hdCarouselBadge').style.display = hotel.badge ? '' : 'none';
-    }
+    /** The hotel's photo, or the gradient placeholder when it has none. */
+    function renderHeroImage(hotel) {
+        document.getElementById('hdCarouselSlides').innerHTML = hotel.image
+            ? `<div class="hd-carousel-slide active"><img src="${escapeHtml(hotel.image)}" alt="${escapeHtml(hotel.name)}"></div>`
+            : `<div class="hd-carousel-slide ph-${hotel.placeholder_shade} active"><i class="bi bi-image"></i></div>`;
 
-    function showSlide(n) {
-        const slides = document.querySelectorAll('.hd-carousel-slide');
-        const dots = document.querySelectorAll('.hd-carousel-dots span');
-        if (!slides.length) return;
-        currentSlide = (n + slides.length) % slides.length;
-        slides.forEach((s, i) => s.classList.toggle('active', i === currentSlide));
-        dots.forEach((d, i) => d.classList.toggle('active', i === currentSlide));
+        const badge = document.getElementById('hdCarouselBadge');
+        badge.textContent = hotel.badge || '';
+        badge.style.display = hotel.badge ? '' : 'none';
     }
-
-    document.getElementById('hdPrevSlide').addEventListener('click', () => showSlide(currentSlide - 1));
-    document.getElementById('hdNextSlide').addEventListener('click', () => showSlide(currentSlide + 1));
 
     function renderRoomCard(room) {
         if (!room.available) {
@@ -752,12 +708,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }, bookRoomBtn);
     });
 
-    document.querySelectorAll('.js-view-hotel').forEach(function (btn, index) {
+    document.querySelectorAll('.js-view-hotel').forEach(function (btn) {
         btn.addEventListener('click', function () {
             currentHotel = JSON.parse(btn.dataset.hotel);
             selectedRoomKey = (currentHotel.rooms.find(r => r.available) || {}).key || null;
 
-            renderCarousel(currentHotel, index);
+            renderHeroImage(currentHotel);
             document.getElementById('hdName').textContent = currentHotel.name;
             document.getElementById('hdAddress').textContent = currentHotel.address;
             document.getElementById('hdDescription').textContent = currentHotel.description;
