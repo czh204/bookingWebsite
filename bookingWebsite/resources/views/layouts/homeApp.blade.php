@@ -24,7 +24,35 @@
  
         * { font-family: 'Inter', system-ui, sans-serif; }
         .font-serif { font-family: 'Playfair Display', Georgia, serif; }
-        body { background: var(--cream); }
+
+        /* Sticky footer: on a page shorter than the window the content
+           grows to fill the gap, so the footer sits at the bottom edge
+           instead of floating mid-screen with cream below it. */
+        body {
+            background: var(--cream);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page-content { flex: 1 0 auto; }
+
+        /* ---------- Site footer ---------- */
+        .site-footer {
+            flex-shrink: 0;
+            background: var(--navy);
+            padding: 1.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1.25rem;
+            flex-wrap: wrap;
+            font-size: .85rem;
+            color: rgba(255,255,255,.7);
+        }
+
+        .site-footer a { color: #fff; font-weight: 600; text-decoration: none; }
+        .site-footer a:hover { text-decoration: underline; }
  
         /* ---------- Shared navbar (used on every page) ---------- */
         .site-nav {
@@ -379,8 +407,16 @@
 <body>
  
     @include('partials.navBar')
- 
-    @yield('content')
+
+    {{-- Wrapper so the footer can be pushed to the bottom of short pages.
+         Content stays in normal block flow inside it, so page layouts
+         (including the negative top margins several heroes rely on) are
+         unaffected. --}}
+    <main class="page-content">
+        @yield('content')
+    </main>
+
+    @include('partials.footer')
 
     @include('partials.chatWidget')
  

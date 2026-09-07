@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attraction;
+use App\Services\Gallery;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -12,6 +13,8 @@ class AttractionController extends Controller
     protected const PER_PAGE = 10;
 
     protected const CATEGORIES = ['Museum', 'Tour', 'Food & Drink', 'Adventure'];
+
+    public function __construct(protected Gallery $gallery = new Gallery) {}
 
     public function index(Request $request)
     {
@@ -46,6 +49,12 @@ class AttractionController extends Controller
     {
         $data = $attraction->attributesToArray();
         $data['time_slots'] = $this->buildTimeSlots($attraction);
+        // null when image_path is empty or points at a missing file, so
+        // the view shows the gradient placeholder instead.
+        $data['image'] = $this->gallery->resolve($attraction->image_path);
+        // Keyed off the id, not the loop position, so an attraction keeps
+        // the same placeholder shade whichever page or filter it's on.
+        $data['placeholder_shade'] = ($attraction->id % 6) + 1;
 
         return (object) $data;
     }

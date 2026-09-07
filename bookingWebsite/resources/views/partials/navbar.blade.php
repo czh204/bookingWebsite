@@ -35,9 +35,9 @@
                     <span class="d-none d-lg-inline">{{ auth()->user()->name }}</span>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                    {{-- No My Bookings entry here: the main nav already links
+                         to it, so a second copy in the dropdown is redundant. --}}
                     <li><a class="dropdown-item" href="{{ url('/account') }}"><i class="bi bi-person me-2"></i>My Account</a></li>
-                    {{-- Was /bookings, which has no route and 404s. --}}
-                    <li><a class="dropdown-item" href="{{ route('itinerary.index') }}"><i class="bi bi-suitcase me-2"></i>My Bookings</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <form method="POST" action="{{ route('logout') }}">

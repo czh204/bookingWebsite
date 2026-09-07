@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'address',
     'star_rating',
     'badge',
+    'image_path',
     'price_per_night',
     'description',
     'check_in_time',

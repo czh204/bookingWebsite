@@ -351,8 +351,7 @@
                             <i class="bi bi-person me-1"></i> Sign in to Checkout
                         </a>
                         <div class="signin-note">
-                            You'll need an account to complete a booking — sign in or
-                            create one on the next page. Your cart is kept either way.
+                            You'll need an account to complete a booking. Please sign in or register to continue.
                         </div>
                     @endauth
 

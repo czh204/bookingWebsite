@@ -187,6 +187,9 @@
         font-size: 2rem;
     }
 
+    .attraction-thumb img,
+    .ad-carousel-slide img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
     .attraction-thumb-badge {
         position: absolute;
         top: .6rem;
@@ -253,7 +256,11 @@
     /* ---------- Attraction detail modal ---------- */
     .attraction-modal-content { border-radius: .9rem; border: none; overflow: hidden; }
 
-    .ad-carousel { position: relative; height: 240px; }
+    /* flex-shrink:0 is load-bearing: .modal-content is a flex column with
+       max-height:100%, so without it the carousel gets squashed to 0px and
+       its absolutely-positioned badge, close button and arrows spill over
+       the title below. */
+    .ad-carousel { position: relative; height: 240px; flex-shrink: 0; }
     .ad-carousel-slide {
         position: absolute;
         inset: 0;
@@ -292,44 +299,8 @@
         justify-content: center;
     }
 
-    .ad-carousel-arrow {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        z-index: 2;
-        background: rgba(0,0,0,.45);
-        border: none;
-        color: #fff;
-        width: 34px;
-        height: 34px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .ad-carousel-arrow.prev { left: .75rem; }
-    .ad-carousel-arrow.next { right: .75rem; }
-
-    .ad-carousel-dots {
-        position: absolute;
-        bottom: .75rem;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 2;
-        display: flex;
-        gap: .3rem;
-    }
-
-    .ad-carousel-dots span {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: rgba(255,255,255,.5);
-    }
-
-    .ad-carousel-dots span.active { background: #fff; }
-
+    /* Overrides Bootstrap's .modal-body padding; both are single classes,
+       so this wins on source order (our styles load after the CDN). */
     .ad-body { padding: 1.25rem; }
     .ad-name { font-size: 1.3rem; font-weight: 700; color: var(--navy-dark); margin-bottom: .4rem; }
 
@@ -543,9 +514,13 @@
                 @forelse ($attractions as $index => $attraction)
                     <div class="col">
                         <div class="attraction-card">
-                            <div class="attraction-thumb ph-{{ ($index % 6) + 1 }}">
+                            <div class="attraction-thumb {{ $attraction->image ? '' : 'ph-'.$attraction->placeholder_shade }}">
                                 <span class="attraction-thumb-badge cat-{{ $categorySlugs[$attraction->category] }}">{{ $attraction->category }}</span>
-                                <i class="bi bi-image"></i>
+                                @if ($attraction->image)
+                                    <img src="{{ $attraction->image }}" alt="{{ $attraction->title }}" loading="lazy">
+                                @else
+                                    <i class="bi bi-image"></i>
+                                @endif
                             </div>
                             <div class="attraction-body">
                                 <div class="title">{{ $attraction->title }}</div>
@@ -594,13 +569,14 @@
             <div class="ad-carousel" id="adCarousel">
                 <span class="ad-carousel-badge" id="adCarouselBadge"></span>
                 <button type="button" class="ad-carousel-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
-                <button type="button" class="ad-carousel-arrow prev" id="adPrevSlide"><i class="bi bi-chevron-left"></i></button>
-                <button type="button" class="ad-carousel-arrow next" id="adNextSlide"><i class="bi bi-chevron-right"></i></button>
-                <div class="ad-carousel-dots" id="adCarouselDots"></div>
                 <div id="adCarouselSlides"></div>
             </div>
 
-            <div class="ad-body">
+            {{-- modal-body is required, not decorative: modal-dialog-scrollable
+                 only makes a .modal-body scrollable. Without it the content is
+                 clipped by .modal-content's overflow:hidden with no scrollbar,
+                 and the footer's Book Now button ends up outside the viewport. --}}
+            <div class="modal-body ad-body">
                 <div class="ad-name" id="adName"></div>
                 <div class="ad-meta-row">
                     <span class="meta-item"><i class="bi bi-clock"></i> <span id="adDuration"></span></span>
@@ -684,8 +660,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const bookNowBtn = document.getElementById('adBookNow');
     let currentAttraction = null;
     let selectedSlotKey = null;
-    let currentSlide = 0;
-    const slideCount = 3;
 
     function escapeHtml(str) {
         const div = document.createElement('div');
@@ -693,38 +667,17 @@ document.addEventListener('DOMContentLoaded', function () {
         return div.innerHTML;
     }
 
-    function renderCarousel(attraction, index) {
-        const shades = ['ph-1', 'ph-2', 'ph-3', 'ph-4', 'ph-5', 'ph-6'];
-        const slidesEl = document.getElementById('adCarouselSlides');
-        const dotsEl = document.getElementById('adCarouselDots');
-        let slidesHtml = '';
-        let dotsHtml = '';
-        for (let i = 0; i < slideCount; i++) {
-            const shade = shades[(index + i) % shades.length];
-            slidesHtml += `<div class="ad-carousel-slide ${shade} ${i === 0 ? 'active' : ''}" data-slide="${i}"><i class="bi bi-image"></i></div>`;
-            dotsHtml += `<span class="${i === 0 ? 'active' : ''}"></span>`;
-        }
-        slidesEl.innerHTML = slidesHtml;
-        dotsEl.innerHTML = dotsHtml;
-        currentSlide = 0;
+    /** The attraction's photo, or the gradient placeholder when it has none. */
+    function renderHeroImage(attraction) {
+        document.getElementById('adCarouselSlides').innerHTML = attraction.image
+            ? `<div class="ad-carousel-slide active"><img src="${escapeHtml(attraction.image)}" alt="${escapeHtml(attraction.title)}"></div>`
+            : `<div class="ad-carousel-slide ph-${attraction.placeholder_shade} active"><i class="bi bi-image"></i></div>`;
 
         const categorySlugs = { 'Museum': 'museum', 'Tour': 'tour', 'Food & Drink': 'food-drink', 'Adventure': 'adventure' };
         const badge = document.getElementById('adCarouselBadge');
         badge.textContent = attraction.category;
         badge.className = 'ad-carousel-badge cat-' + categorySlugs[attraction.category];
     }
-
-    function showSlide(n) {
-        const slides = document.querySelectorAll('.ad-carousel-slide');
-        const dots = document.querySelectorAll('.ad-carousel-dots span');
-        if (!slides.length) return;
-        currentSlide = (n + slides.length) % slides.length;
-        slides.forEach((s, i) => s.classList.toggle('active', i === currentSlide));
-        dots.forEach((d, i) => d.classList.toggle('active', i === currentSlide));
-    }
-
-    document.getElementById('adPrevSlide').addEventListener('click', () => showSlide(currentSlide - 1));
-    document.getElementById('adNextSlide').addEventListener('click', () => showSlide(currentSlide + 1));
 
     function renderList(elId, items, iconClass) {
         document.getElementById(elId).innerHTML = items.map(item => `<div><i class="bi ${iconClass}"></i>${escapeHtml(item)}</div>`).join('');
@@ -769,12 +722,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }, bookNowBtn);
     });
 
-    document.querySelectorAll('.js-view-attraction').forEach(function (btn, index) {
+    document.querySelectorAll('.js-view-attraction').forEach(function (btn) {
         btn.addEventListener('click', function () {
             currentAttraction = JSON.parse(btn.dataset.attraction);
             selectedSlotKey = (currentAttraction.time_slots.find(s => s.available) || {}).key || null;
 
-            renderCarousel(currentAttraction, index);
+            renderHeroImage(currentAttraction);
             document.getElementById('adName').textContent = currentAttraction.title;
             document.getElementById('adDuration').textContent = currentAttraction.duration_label;
             document.getElementById('adCapacity').textContent = `Up to ${currentAttraction.capacity}`;

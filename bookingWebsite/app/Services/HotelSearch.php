@@ -17,6 +17,8 @@ class HotelSearch
 
     public const SORTS = ['recommended', 'price_asc', 'price_desc'];
 
+    public function __construct(protected Gallery $gallery = new Gallery) {}
+
     /**
      * Filter and sort every hotel against the given criteria.
      *
@@ -70,6 +72,12 @@ class HotelSearch
     {
         $data = $hotel->attributesToArray();
         $data['rooms'] = $this->buildRooms($hotel);
+        // null when image_path is empty or points at a missing file, so
+        // the view shows the gradient placeholder instead.
+        $data['image'] = $this->gallery->resolve($hotel->image_path);
+        // Keyed off the id, not the loop position, so a hotel keeps the
+        // same placeholder shade whichever page or filter it appears in.
+        $data['placeholder_shade'] = ($hotel->id % 6) + 1;
 
         return (object) $data;
     }
