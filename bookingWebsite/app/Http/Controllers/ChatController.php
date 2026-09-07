@@ -41,6 +41,8 @@ class ChatController extends Controller
         'payment', 'pay', 'confirm', 'itinerary', 'receipt', 'change my',
     ];
 
+    const KEYLESS_PROVIDERS = ['ollama'];
+
     protected const HOTEL_KEYWORDS = [
         'hotel', 'room', 'stay', 'resort', 'accommodation', 'amenit',
         'check-in', 'checkin', 'check-out', 'checkout', 'star rating',
@@ -189,7 +191,8 @@ class ChatController extends Controller
         $names = collect(is_array($provider) ? $provider : [$provider])
             ->map(fn ($p) => $p instanceof Lab ? $p->value : $p);
 
-        return $names->contains(fn ($name) => filled(config("ai.providers.{$name}.key")));
+        return $names->contains(fn ($name) => in_array($name, self::KEYLESS_PROVIDERS, true)
+            || filled(config("ai.providers.{$name}.key")));
     }
 
     /**
