@@ -161,16 +161,27 @@ class ChatController extends Controller
     /**
      * Whether an API key exists for whichever provider SupportAgent will
      * actually use. Mirrors Laravel\Ai\Promptable::getProvidersAndModels()'s
-     * own resolution order — the agent's #[Provider(...)] class attribute
-     * wins if present, otherwise it falls back to config('ai.default').
-     * A naive check against one hardcoded provider name (or even against
-     * config('ai.default') alone) silently disagrees with this the moment
-     * the attribute and the config default point at different providers.
+     * own resolution order, in its order of precedence:
+     *
+     *   1. a provider() method on the agent  (what we use — AI_PROVIDER)
+     *   2. a #[Provider(...)] class attribute
+     *   3. config('ai.default')
+     *
+     * Checking any one of those alone silently disagrees with the SDK the
+     * moment they stop pointing at the same provider, which shows up as
+     * the fallback answer firing when a key is present, or a live request
+     * being attempted when it isn't.
      */
     protected function activeProviderIsConfigured(): bool
     {
-        $attributes = (new ReflectionClass(SupportAgent::class))->getAttributes(ProviderAttribute::class);
-        $provider = $attributes === [] ? config('ai.default') : $attributes[0]->newInstance()->value;
+        $agent = app(SupportAgent::class);
+
+        if (method_exists($agent, 'provider')) {
+            $provider = $agent->provider();
+        } else {
+            $attributes = (new ReflectionClass(SupportAgent::class))->getAttributes(ProviderAttribute::class);
+            $provider = $attributes === [] ? config('ai.default') : $attributes[0]->newInstance()->value;
+        }
 
         // ->value may be a Lab enum, a plain string, or (for failover) an
         // array of providers — in the array case, being configured for
@@ -208,9 +219,13 @@ class ChatController extends Controller
 
     protected function bookingFallback(): string
     {
+        // Mirrors the booking policies in App\Ai\Agents\SupportAgent — if
+        // one changes, this has to change with it, or the offline answer
+        // contradicts the live one.
         return "I'm having trouble reaching the assistant right now, but here's what I can tell you: "
-            .'you can cancel a booking from the Calendar page — open it and select "Cancel Reservation". '
-            .'Refunds are full within 24 hours of purchase and partial after, based on fare rules. '
+            .'you can view and cancel bookings from the My Bookings page — open the booking and '
+            .'select "Cancel Reservation". Whether a cancellation is allowed and how much is refunded '
+            .'is set by the airline or hotel, not by Voyagr; approved refunds are processed within 48 hours. '
             .'Modifications can\'t be made through the website after purchase — contact the phone number '
             .'under the booking tab, as this is subject to the provider\'s own policy. '
             .'We accept major credit/debit cards and popular e-wallets including TnG and Boost.';

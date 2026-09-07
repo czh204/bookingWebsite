@@ -2,16 +2,14 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Tools\SearchFlights;
 use App\Ai\Tools\SearchHotels;
 use Laravel\Ai\Attributes\MaxSteps;
 use Laravel\Ai\Attributes\MaxTokens;
-use Laravel\Ai\Attributes\Model;
-use Laravel\Ai\Attributes\Provider;
 use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasTools;
-use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Promptable;
 use Stringable;
 
@@ -20,19 +18,48 @@ use Stringable;
  *
  * Booking policy is answered zero-shot from instructions() below — the
  * policies are facts to reason over, not a format to imitate, so few-shot
- * examples would only add per-request token cost. Hotel search is handled
- * by tool calling rather than prompting: the model extracts parameters,
- * SearchHotels runs the real query.
+ * examples would only add per-request token cost. Flight and hotel search
+ * are handled by tool calling rather than prompting: the model extracts
+ * parameters, SearchFlights and SearchHotels run the real queries against
+ * the same services the /flights and /hotels pages use.
  *
  * MaxSteps caps the tool loop so a bad call can't run away.
+ *
+ * The provider is chosen by AI_PROVIDER rather than a #[Provider] class
+ * attribute, so switching between Gemini, Mistral and the rest is an .env
+ * change instead of a code change.
  */
-#[Provider(Lab::Gemini)]
-#[Model('gemini-3.5-flash-lite')]
 #[MaxSteps(6)]
 #[MaxTokens(1024)]
 class SupportAgent implements Agent, Conversational, HasTools
 {
     use Promptable, RemembersConversations;
+
+    /**
+     * Which provider to prompt — AI_PROVIDER via config('ai.default').
+     *
+     * The SDK checks for this method before the #[Provider] attribute
+     * (see Laravel\Ai\Promptable::getProvidersAndModels), which is what
+     * lets the choice come from config at all: attributes are compile-time
+     * constants and can't read env.
+     */
+    public function provider(): string
+    {
+        return (string) config('ai.default');
+    }
+
+    /**
+     * Which model to use, or null to take whichever model the chosen
+     * provider considers its default — gemini-3.5-flash-lite for Gemini,
+     * mistral-medium-latest for Mistral, and so on.
+     *
+     * Set AI_MODEL to pin a specific one. Leave it empty when switching
+     * providers, since a model name is only valid for its own provider.
+     */
+    public function model(): ?string
+    {
+        return config('ai.agent_model') ?: null;
+    }
 
     public function instructions(): Stringable|string
     {
@@ -43,16 +70,17 @@ class SupportAgent implements Agent, Conversational, HasTools
 
         // Booking policies (the source of truth - never contradict these)
 
-        - Cancelling: users cancel from Calendar - open the booking and select
-          "Cancel Reservation". Refund eligibility depends on the fare or rate rules.
-        - Refunds: full refund within 24 hours of purchase. After that, partial refund
-          based on the fare type.
+        - Viewing bookings: users view and manage everything they have booked from
+          the My Bookings page in their account.
+        - Cancelling: users cancel from My Bookings - open the booking and select
+          "Cancel Reservation".
+        - Refunds and cancellation terms: whether a booking can be cancelled, and how
+          much is refunded, is decided by the airline or hotel, not by Voyagr. Once a
+          refund is approved it is processed within 48 hours.
         - Modifying: No modification can be done by the website after purchase has been made,
         Modification is strictly subject to third party company policies, you can contact the
         phone number under booking tab to request modification
         - Payment: all major credit and debit cards and popular e-wallets such as TnG and Boost.
-        - Hotel cancellation: free cancellation up to 48 hours before check-in; later
-          cancellations are charged one night.
         - Pets: dependent on hotel policy, check the hotel policies before booking or contact the hotel via phone number.
         - Check-in and Check-out, check the hotel check-in and check-out times before booking.
 
@@ -66,6 +94,26 @@ class SupportAgent implements Agent, Conversational, HasTools
         If they name a city you find nothing in, say so plainly and suggest loosening
         the budget or amenities rather than inventing alternatives.
 
+        // Searching flights
+
+        When someone describes a route, a budget, an airline, how many stops they will
+        accept, or what time of day they want to leave, call the search_flights tool
+        instead of answering from memory. Pass whatever they gave you and leave the rest
+        out - you do not need every parameter. Report only what the tool returns, and
+        include its results link so they can browse.
+
+        A route has two ends: "from" is where they leave, "to" is where they land. If
+        they only name one place, pass just that one rather than guessing the other.
+
+        If they find nothing on a route, say so plainly and suggest allowing stops or
+        widening the budget or departure time rather than inventing alternatives.
+
+        // Using both tools
+
+        A trip often needs a flight and a hotel. If they ask for both in one message,
+        call both tools and answer once, covering each in turn. Never answer for one
+        from the other's results.
+
         // Boundaries
 
         Only help with Voyagr bookings, hotels, and travel planning. If asked about
@@ -77,7 +125,8 @@ class SupportAgent implements Agent, Conversational, HasTools
         in-depth information. 
 
         You cannot make, change, or cancel a booking yourself — you can only explain
-        how, and search hotels. Never claim to have performed one of those actions.
+        how, and search flights and hotels. Never claim to have performed one of those
+        actions.
 
         // Fixed responses
 
@@ -104,7 +153,7 @@ class SupportAgent implements Agent, Conversational, HasTools
            how to do it themselves:
 
            "I can't make changes to bookings myself, but I can walk you through it.
-           You can manage your bookings from the Calendar Page in your account."
+           You can manage your bookings from the My Bookings Page in your account."
 
         PROMPT;
     }
@@ -115,6 +164,7 @@ class SupportAgent implements Agent, Conversational, HasTools
     public function tools(): iterable
     {
         return [
+            app(SearchFlights::class),
             app(SearchHotels::class),
         ];
     }

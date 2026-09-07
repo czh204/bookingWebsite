@@ -14,6 +14,15 @@ return [
     */
 
     'default' => env('AI_PROVIDER', 'anthropic'),
+
+    /*
+     * Optional model override for App\Ai\Agents\SupportAgent. Leave empty
+     * to use whichever model the chosen provider defaults to, which is
+     * what makes AI_PROVIDER switchable on its own — a model name is only
+     * valid for the provider it belongs to.
+     */
+    'agent_model' => env('AI_MODEL'),
+
     'default_for_images' => 'gemini',
     'default_for_audio' => 'openai',
     'default_for_transcription' => 'openai',
