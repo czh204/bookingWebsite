@@ -109,12 +109,29 @@ document.addEventListener('DOMContentLoaded', function () {
     // http(s) URLs are linkified, so nothing in the model's output (or a
     // malicious tool result) can inject markup or a javascript: URL.
     function renderBotText(text) {
-        const escaped = escapeHtml(text);
+        // Escaping FIRST is what makes the rest safe: everything below
+        // inserts HTML, so any markup in the model's output (or in a tool
+        // result) is already inert text by the time it gets here.
+        let html = escapeHtml(text);
 
-        return escaped.replace(
-            /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-            '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+        // Markdown links. Two forms are allowed and nothing else: an
+        // http(s) URL, or a site-relative path starting with a single "/".
+        // Both rule out javascript: and data: URLs. Search results use the
+        // relative form, so the link text reads "Voyagr Hotels" rather
+        // than exposing a hostname.
+        html = html.replace(
+            /\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]*)\)/g,
+            '<a href="$2" rel="noopener noreferrer">$1</a>'
         );
+
+        // Bold, then italic. Bold runs first so the ** in "**text**" is
+        // consumed before the single-* rule could match one of its stars.
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+
+        // The model writes lists and paragraphs with newlines, which HTML
+        // would otherwise collapse into one run-on line.
+        return html.replace(/\n/g, '<br>');
     }
 
     function addBotMessage(text) {

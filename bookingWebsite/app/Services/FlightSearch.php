@@ -74,7 +74,7 @@ class FlightSearch
             'departure_time' => $filters['departure_time'] ?? null,
         ], fn ($value) => $value !== null && $value !== '' && $value !== []);
 
-        return route('flights.index', $query);
+        return route('flights.index', $query, absolute: false);
     }
 
     /**

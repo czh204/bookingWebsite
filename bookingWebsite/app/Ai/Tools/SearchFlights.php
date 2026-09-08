@@ -80,7 +80,7 @@ class SearchFlights implements Tool
 
         if ($flights->isEmpty()) {
             return 'No flights matched those criteria. Suggest relaxing the budget, allowing stops, '
-                ."or widening the departure time. Browse all flights: {$this->search->deepLink()}";
+                ."or widening the departure time. Browse all: [Voyagr Flights]({$this->search->deepLink()})";
         }
 
         $lines = $flights->take(5)->map(function ($flight) {
@@ -113,6 +113,6 @@ class SearchFlights implements Tool
         $shown = min(5, $total);
 
         return "Found {$total} matching flight(s); showing {$shown}:\n{$lines}\n\n"
-            ."Full results with filters applied: {$this->search->deepLink($filters)}";
+            ."See them all with these filters applied: [Voyagr Flights]({$this->search->deepLink($filters)})";
     }
 }

@@ -74,7 +74,7 @@ class ChatController extends Controller
                 ->prompt($validated['message']);
 
             return response()->json([
-                'reply' => (string) $response,
+                'reply' => $this->tidy((string) $response),
                 'configured' => true,
             ]);
         } catch (Throwable $e) {
@@ -88,6 +88,79 @@ class ChatController extends Controller
                 'configured' => true,
             ], 500);
         }
+    }
+
+    /**
+     * Post-processing applied to every model reply.
+     *
+     * The prompt asks for both of these, but qwen3 complies only some of
+     * the time, and a rule that holds "usually" is not a rule. Doing it
+     * here costs nothing when the model did behave.
+     */
+    protected function tidy(string $reply): string
+    {
+        return $this->stripEmoji($this->normaliseLinks($reply));
+    }
+
+    /**
+     * Removes emoji, which the prompt forbids but the model keeps adding.
+     * Covers the pictographic blocks plus the variation selector that
+     * would otherwise be left stranded behind a removed glyph.
+     */
+    protected function stripEmoji(string $reply): string
+    {
+        $cleaned = preg_replace(
+            '/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}\x{2B00}-\x{2BFF}]/u',
+            '',
+            $reply
+        );
+
+        // Collapse the double spaces a removed glyph leaves behind.
+        return trim(preg_replace('/ {2,}/', ' ', $cleaned ?? $reply));
+    }
+
+    /**
+     * Canonical label for each results page a tool can link to.
+     */
+    protected const LINK_LABELS = [
+        'hotels' => 'Voyagr Hotels',
+        'flights' => 'Voyagr Flights',
+    ];
+
+    /**
+     * Forces every results link to carry the site's own label.
+     *
+     * The prompt asks the model to keep the label the tool supplied, but
+     * it rewrites it to "click here" / "View all options here" often
+     * enough that asking isn't sufficient. Rewriting after the fact makes
+     * it certain, and costs nothing when the model did behave.
+     *
+     * A bare URL the model wrote out as text is converted too, so an
+     * address never appears as visible text.
+     */
+    protected function normaliseLinks(string $reply): string
+    {
+        foreach (self::LINK_LABELS as $page => $label) {
+            // Any markdown link pointing at this page, whatever its label.
+            $reply = preg_replace(
+                '#\[[^\]]*\]\((\S*?/'.$page.'[^\s)]*)\)#',
+                "[{$label}](\$1)",
+                $reply
+            );
+
+            // A raw address written as text, with no markdown around it.
+            // No \b here: a word boundary doesn't exist between a space
+            // and a "/", so "at /flights?to=Paris" would be missed. The
+            // "(" lookbehind is what keeps this from re-wrapping a link
+            // the pass above already converted.
+            $reply = preg_replace(
+                '#(?<!\()(?<!\])(?:https?://[^\s]*)?/'.$page.'(?:\?[^\s,.]*)?#',
+                "[{$label}](\$0)",
+                $reply
+            );
+        }
+
+        return $reply;
     }
 
     /**
