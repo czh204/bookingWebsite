@@ -223,13 +223,21 @@
             border: 2px solid #fff;
         }
 
+        /* Panel size is driven by these three variables so one media query
+           scales the box and its text together — a wider panel with 13px
+           text just looks stretched. They inherit down to the bubbles,
+           quick questions and input. */
         .chat-panel {
+            --chat-width: 340px;
+            --chat-height: 560px;
+            --chat-font: .85rem;
+
             position: fixed;
             bottom: 1.5rem;
             right: 1.5rem;
-            width: 340px;
+            width: var(--chat-width);
             max-width: calc(100vw - 2rem);
-            max-height: min(560px, calc(100vh - 3rem));
+            max-height: min(var(--chat-height), calc(100vh - 3rem));
             background: #fff;
             border-radius: .9rem;
             box-shadow: 0 20px 45px -12px rgba(0,0,0,.35);
@@ -295,7 +303,7 @@
             border: 1px solid var(--border-soft);
             border-radius: 999px;
             padding: .55rem 1rem;
-            font-size: .82rem;
+            font-size: calc(var(--chat-font) - .03rem);
             color: var(--navy-dark);
         }
 
@@ -331,7 +339,7 @@
             background: var(--cream);
             border-radius: .8rem;
             padding: .6rem .85rem;
-            font-size: .85rem;
+            font-size: var(--chat-font);
             color: var(--navy-dark);
             max-width: 78%;
             line-height: 1.4;
@@ -344,6 +352,8 @@
 
         .chat-bubble a { color: var(--navy); font-weight: 600; text-decoration: underline; }
         .chat-bubble-user a { color: #fff; }
+        .chat-bubble strong { font-weight: 700; color: var(--navy-dark); }
+        .chat-bubble-user strong { color: #fff; }
 
         .chat-input-row {
             display: flex;
@@ -360,7 +370,7 @@
             background: var(--cream);
             border-radius: 999px;
             padding: .6rem 1rem;
-            font-size: .85rem;
+            font-size: var(--chat-font);
         }
 
         .chat-input:focus { outline: none; box-shadow: 0 0 0 .15rem rgba(30,42,69,.15); }
@@ -400,6 +410,20 @@
             0%, 60%, 100% { transform: translateY(0); opacity: .4; }
             30% { transform: translateY(-4px); opacity: 1; }
         }
+
+        /* Scale the assistant up on roomier screens. The panel was a
+           fixed 340x560 at every size, which is fine on a laptop and
+           cramped on a large monitor. Breakpoints only ever grow it, so
+           small screens keep the original layout. */
+        @media (min-width: 1200px) {
+            .chat-panel { --chat-width: 400px; --chat-height: 640px; --chat-font: .9rem; }
+        }
+
+        @media (min-width: 1600px) {
+            .chat-panel { --chat-width: 460px; --chat-height: 720px; --chat-font: .95rem; }
+            .chat-bubble-btn { width: 62px; height: 62px; font-size: 1.55rem; }
+        }
+
     </style>
 
     @stack('styles')

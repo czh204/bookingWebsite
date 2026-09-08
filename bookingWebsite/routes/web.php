@@ -33,6 +33,15 @@ Route::get('/attractions', [AttractionController::class, 'index'])->name('attrac
 Route::get('/flights', [FlightController::class, 'index'])->name('flights.index');
 Route::get('/ai-planner', [ItineraryController::class, 'index'])->name('itinerary.index');
 
+// Writes AI-planned entries onto the signed-in user's calendar. Throttled
+// because each request is a model call that can produce dozens of rows.
+Route::middleware(['auth', 'throttle:20,1'])->group(function () {
+    // Builds a plan and holds it in the session for preview.
+    Route::post('/ai-planner/plan', [ItineraryController::class, 'plan'])->name('itinerary.plan');
+    // Commits or discards the previewed plan.
+    Route::post('/ai-planner/plan/confirm', [ItineraryController::class, 'confirmPlan'])->name('itinerary.plan.confirm');
+});
+
 // ---------- Cart ----------
 // Open to guests: browsing and gathering a cart needs no account. The
 // cart lives in the session, so it survives signing in and is still

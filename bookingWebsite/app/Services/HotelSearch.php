@@ -35,6 +35,11 @@ class HotelSearch
     /**
      * Builds a link into the real /hotels page carrying the same filters,
      * so a chat answer can hand the user off to the browsable UI.
+     *
+     * Relative on purpose. An absolute URL is built from APP_URL, which
+     * put "http://localhost/..." in front of users browsing on 127.0.0.1
+     * and would point at the wrong host once deployed. A path works
+     * wherever the widget is being served from.
      */
     public function deepLink(array $filters = []): string
     {
@@ -46,7 +51,7 @@ class HotelSearch
             'amenities' => $filters['amenities'] ?? null,
         ], fn ($value) => $value !== null && $value !== '' && $value !== []);
 
-        return route('hotels.index', $query);
+        return route('hotels.index', $query, absolute: false);
     }
 
     /**

@@ -41,6 +41,8 @@ class ChatController extends Controller
         'payment', 'pay', 'confirm', 'itinerary', 'receipt', 'change my',
     ];
 
+    const KEYLESS_PROVIDERS = ['ollama'];
+
     protected const HOTEL_KEYWORDS = [
         'hotel', 'room', 'stay', 'resort', 'accommodation', 'amenit',
         'check-in', 'checkin', 'check-out', 'checkout', 'star rating',
@@ -72,7 +74,7 @@ class ChatController extends Controller
                 ->prompt($validated['message']);
 
             return response()->json([
-                'reply' => (string) $response,
+                'reply' => $this->tidy((string) $response),
                 'configured' => true,
             ]);
         } catch (Throwable $e) {
@@ -86,6 +88,79 @@ class ChatController extends Controller
                 'configured' => true,
             ], 500);
         }
+    }
+
+    /**
+     * Post-processing applied to every model reply.
+     *
+     * The prompt asks for both of these, but qwen3 complies only some of
+     * the time, and a rule that holds "usually" is not a rule. Doing it
+     * here costs nothing when the model did behave.
+     */
+    protected function tidy(string $reply): string
+    {
+        return $this->stripEmoji($this->normaliseLinks($reply));
+    }
+
+    /**
+     * Removes emoji, which the prompt forbids but the model keeps adding.
+     * Covers the pictographic blocks plus the variation selector that
+     * would otherwise be left stranded behind a removed glyph.
+     */
+    protected function stripEmoji(string $reply): string
+    {
+        $cleaned = preg_replace(
+            '/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}\x{2B00}-\x{2BFF}]/u',
+            '',
+            $reply
+        );
+
+        // Collapse the double spaces a removed glyph leaves behind.
+        return trim(preg_replace('/ {2,}/', ' ', $cleaned ?? $reply));
+    }
+
+    /**
+     * Canonical label for each results page a tool can link to.
+     */
+    protected const LINK_LABELS = [
+        'hotels' => 'Voyagr Hotels',
+        'flights' => 'Voyagr Flights',
+    ];
+
+    /**
+     * Forces every results link to carry the site's own label.
+     *
+     * The prompt asks the model to keep the label the tool supplied, but
+     * it rewrites it to "click here" / "View all options here" often
+     * enough that asking isn't sufficient. Rewriting after the fact makes
+     * it certain, and costs nothing when the model did behave.
+     *
+     * A bare URL the model wrote out as text is converted too, so an
+     * address never appears as visible text.
+     */
+    protected function normaliseLinks(string $reply): string
+    {
+        foreach (self::LINK_LABELS as $page => $label) {
+            // Any markdown link pointing at this page, whatever its label.
+            $reply = preg_replace(
+                '#\[[^\]]*\]\((\S*?/'.$page.'[^\s)]*)\)#',
+                "[{$label}](\$1)",
+                $reply
+            );
+
+            // A raw address written as text, with no markdown around it.
+            // No \b here: a word boundary doesn't exist between a space
+            // and a "/", so "at /flights?to=Paris" would be missed. The
+            // "(" lookbehind is what keeps this from re-wrapping a link
+            // the pass above already converted.
+            $reply = preg_replace(
+                '#(?<!\()(?<!\])(?:https?://[^\s]*)?/'.$page.'(?:\?[^\s,.]*)?#',
+                "[{$label}](\$0)",
+                $reply
+            );
+        }
+
+        return $reply;
     }
 
     /**
@@ -161,16 +236,27 @@ class ChatController extends Controller
     /**
      * Whether an API key exists for whichever provider SupportAgent will
      * actually use. Mirrors Laravel\Ai\Promptable::getProvidersAndModels()'s
-     * own resolution order — the agent's #[Provider(...)] class attribute
-     * wins if present, otherwise it falls back to config('ai.default').
-     * A naive check against one hardcoded provider name (or even against
-     * config('ai.default') alone) silently disagrees with this the moment
-     * the attribute and the config default point at different providers.
+     * own resolution order, in its order of precedence:
+     *
+     *   1. a provider() method on the agent  (what we use — AI_PROVIDER)
+     *   2. a #[Provider(...)] class attribute
+     *   3. config('ai.default')
+     *
+     * Checking any one of those alone silently disagrees with the SDK the
+     * moment they stop pointing at the same provider, which shows up as
+     * the fallback answer firing when a key is present, or a live request
+     * being attempted when it isn't.
      */
     protected function activeProviderIsConfigured(): bool
     {
-        $attributes = (new ReflectionClass(SupportAgent::class))->getAttributes(ProviderAttribute::class);
-        $provider = $attributes === [] ? config('ai.default') : $attributes[0]->newInstance()->value;
+        $agent = app(SupportAgent::class);
+
+        if (method_exists($agent, 'provider')) {
+            $provider = $agent->provider();
+        } else {
+            $attributes = (new ReflectionClass(SupportAgent::class))->getAttributes(ProviderAttribute::class);
+            $provider = $attributes === [] ? config('ai.default') : $attributes[0]->newInstance()->value;
+        }
 
         // ->value may be a Lab enum, a plain string, or (for failover) an
         // array of providers — in the array case, being configured for
@@ -178,7 +264,8 @@ class ChatController extends Controller
         $names = collect(is_array($provider) ? $provider : [$provider])
             ->map(fn ($p) => $p instanceof Lab ? $p->value : $p);
 
-        return $names->contains(fn ($name) => filled(config("ai.providers.{$name}.key")));
+        return $names->contains(fn ($name) => in_array($name, self::KEYLESS_PROVIDERS, true)
+            || filled(config("ai.providers.{$name}.key")));
     }
 
     /**
@@ -208,9 +295,13 @@ class ChatController extends Controller
 
     protected function bookingFallback(): string
     {
+        // Mirrors the booking policies in App\Ai\Agents\SupportAgent — if
+        // one changes, this has to change with it, or the offline answer
+        // contradicts the live one.
         return "I'm having trouble reaching the assistant right now, but here's what I can tell you: "
-            .'you can cancel a booking from the Calendar page — open it and select "Cancel Reservation". '
-            .'Refunds are full within 24 hours of purchase and partial after, based on fare rules. '
+            .'you can view and cancel bookings from the My Bookings page — open the booking and '
+            .'select "Cancel Reservation". Whether a cancellation is allowed and how much is refunded '
+            .'is set by the airline or hotel, not by Voyagr; approved refunds are processed within 48 hours. '
             .'Modifications can\'t be made through the website after purchase — contact the phone number '
             .'under the booking tab, as this is subject to the provider\'s own policy. '
             .'We accept major credit/debit cards and popular e-wallets including TnG and Boost.';

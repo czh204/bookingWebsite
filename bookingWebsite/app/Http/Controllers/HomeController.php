@@ -21,14 +21,18 @@ class HomeController extends Controller
         return view('faq', [
             'faqs' => [
                 [
+                    'question' => 'Where do I view my bookings?',
+                    'answer' => 'Everything you have booked is on the My Bookings page in your account.',
+                ],
+                [
                     'question' => 'How do I cancel a booking?',
-                    'answer' => 'Open the booking from the Calendar in My Bookings and select "Cancel Reservation". '
-                        .'Whether you are refunded depends on the fare or rate rules for that booking.',
+                    'answer' => 'Open the booking from My Bookings and select "Cancel Reservation". Whether a '
+                        .'cancellation is allowed is set by the airline or hotel, not by us.',
                 ],
                 [
                     'question' => 'When do I get a refund?',
-                    'answer' => 'Cancel within 24 hours of purchase for a full refund. After that the refund is '
-                        .'partial, based on the fare type you booked.',
+                    'answer' => 'Refund eligibility is decided by the airline or hotel you booked with. Once a '
+                        .'refund is approved it is processed within 48 hours.',
                 ],
                 [
                     'question' => 'Can I change a booking after paying?',
@@ -41,8 +45,8 @@ class HomeController extends Controller
                 ],
                 [
                     'question' => 'What is the hotel cancellation policy?',
-                    'answer' => 'Free cancellation up to 48 hours before check-in. Cancelling later than that is '
-                        .'charged one night.',
+                    'answer' => 'Each hotel sets its own. Check that hotel\'s policies before booking, or call '
+                        .'them directly if you are unsure.',
                 ],
                 [
                     'question' => 'Are pets allowed?',

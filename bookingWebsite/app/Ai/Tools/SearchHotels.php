@@ -71,7 +71,7 @@ class SearchHotels implements Tool
 
         if ($hotels->isEmpty()) {
             return "No hotels matched those criteria. Suggest relaxing the budget, star rating, "
-                ."or amenity list. Browse all hotels: {$this->search->deepLink()}";
+                ."or amenity list. Browse all: [Voyagr Hotels]({$this->search->deepLink()})";
         }
 
         $lines = $hotels->take(5)->map(function ($hotel) {
@@ -96,6 +96,6 @@ class SearchHotels implements Tool
         $shown = min(5, $total);
 
         return "Found {$total} matching hotel(s); showing {$shown}:\n{$lines}\n\n"
-            ."Full results with filters applied: {$this->search->deepLink($filters)}";
+            ."See them all with these filters applied: [Voyagr Hotels]({$this->search->deepLink($filters)})";
     }
 }
