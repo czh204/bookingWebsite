@@ -172,6 +172,8 @@
     }
 
     .planner-message { display: flex; align-items: flex-start; gap: .55rem; }
+    .planner-message-user { justify-content: flex-end; }
+    .planner-bubble-user { background: var(--navy); color: #fff; }
 
     .planner-message-avatar {
         width: 28px;
@@ -195,6 +197,62 @@
         color: var(--navy-dark);
         max-width: 85%;
     }
+
+    /* ---------- Plan preview ---------- */
+    .planner-preview {
+        background: #fff;
+        border: 1px solid var(--border-soft);
+        border-radius: .8rem;
+        padding: .75rem .9rem;
+        max-width: 85%;
+        font-size: .82rem;
+    }
+
+    .planner-preview-title {
+        font-weight: 700;
+        color: var(--navy-dark);
+        margin-bottom: .4rem;
+    }
+
+    .planner-preview-day {
+        color: #4b5563;
+        padding: .3rem 0;
+        line-height: 1.4;
+    }
+
+    .planner-preview-day + .planner-preview-day { border-top: 1px solid var(--border-soft); }
+
+    .planner-preview-actions {
+        display: flex;
+        gap: .5rem;
+        margin-top: .7rem;
+        padding-top: .7rem;
+        border-top: 1px solid var(--border-soft);
+    }
+
+    .btn-preview-add {
+        flex: 1;
+        background: var(--navy);
+        border: none;
+        border-radius: .5rem;
+        color: #fff;
+        font-weight: 600;
+        font-size: .82rem;
+        padding: .45rem .6rem;
+    }
+
+    .btn-preview-add:hover { background: var(--navy-dark); }
+
+    .btn-preview-discard {
+        background: #fff;
+        border: 1px solid var(--border-soft);
+        border-radius: .5rem;
+        color: var(--text-muted);
+        font-size: .82rem;
+        padding: .45rem .8rem;
+    }
+
+    .btn-preview-discard:hover { background: var(--cream); color: var(--navy-dark); }
 
     .planner-input-row {
         display: flex;
@@ -554,35 +612,41 @@
                     <i class="bi bi-stars"></i> AI Planner
                 </div>
 
-                {{-- UI only — no assistant wired up yet. --}}
                 <div class="planner-tab-pane active" id="pane-planner">
                     <div class="planner-quick">
                         <div class="planner-quick-label">Quick Questions</div>
                         @foreach ($quickQuestions as $question)
-                            <button type="button" class="planner-quick-btn" disabled>{{ $question }}</button>
+                            <button type="button" class="planner-quick-btn js-planner-quick" @guest disabled @endguest>{{ $question }}</button>
                         @endforeach
                     </div>
 
-                    <div class="planner-messages">
+                    <div class="planner-messages" id="plannerMessages">
                         <div class="planner-message">
                             <span class="planner-message-avatar"><i class="bi bi-stars"></i></span>
                             <div class="planner-bubble">
                                 Hi! I'm your AI travel assistant. Tell me your destination and travel dates
-                                and I'll build a personalised itinerary for you.
+                                and I'll build a personalised itinerary straight onto your calendar.
                             </div>
                         </div>
                     </div>
 
-                    <div class="planner-soon-note">
-                        <i class="bi bi-info-circle me-1"></i>The planner assistant isn't connected yet.
-                    </div>
+                    @guest
+                        {{-- Plans are written to the signed-in user's calendar,
+                             so there's nowhere to put them for a guest. --}}
+                        <div class="planner-soon-note">
+                            <i class="bi bi-info-circle me-1"></i>
+                            <a href="{{ route('login') }}">Sign in</a> to plan a trip onto your calendar.
+                        </div>
+                    @endguest
 
-                    <div class="planner-input-row">
-                        <input type="text" class="planner-input" placeholder="Ask about your trip..." disabled>
-                        <button type="button" class="planner-send-btn" disabled aria-label="Send">
+                    <form class="planner-input-row" id="plannerForm">
+                        <input type="text" class="planner-input" id="plannerInput"
+                               placeholder="e.g. 3 days in Paris next month"
+                               maxlength="500" autocomplete="off" @guest disabled @endguest>
+                        <button type="submit" class="planner-send-btn" aria-label="Send" @guest disabled @endguest>
                             <i class="bi bi-send-fill"></i>
                         </button>
-                    </div>
+                    </form>
                 </div>
 
             </div>
@@ -793,5 +857,165 @@
         label.textContent = hidden ? 'Show Planner' : 'Hide Planner';
     });
 })();
+
+@auth
+// ----- AI planner -----
+(function () {
+    const form = document.getElementById('plannerForm');
+    const input = document.getElementById('plannerInput');
+    const messages = document.getElementById('plannerMessages');
+    const sendBtn = form.querySelector('.planner-send-btn');
+    const quickBtns = document.querySelectorAll('.js-planner-quick');
+    const endpoint = @json(route('itinerary.plan'));
+    const confirmEndpoint = @json(route('itinerary.plan.confirm'));
+
+    function addMessage(text, who) {
+        const row = document.createElement('div');
+        row.className = 'planner-message' + (who === 'user' ? ' planner-message-user' : '');
+
+        const bubble = document.createElement('div');
+        bubble.className = 'planner-bubble' + (who === 'user' ? ' planner-bubble-user' : '');
+        // textContent, not innerHTML: the reply includes the model's own
+        // summary, which must never be able to inject markup.
+        bubble.textContent = text;
+
+        if (who !== 'user') {
+            const avatar = document.createElement('span');
+            avatar.className = 'planner-message-avatar';
+            avatar.innerHTML = '<i class="bi bi-stars"></i>';
+            row.appendChild(avatar);
+        }
+
+        row.appendChild(bubble);
+        messages.appendChild(row);
+        messages.scrollTop = messages.scrollHeight;
+
+        return bubble;
+    }
+
+    function setBusy(busy) {
+        input.disabled = busy;
+        sendBtn.disabled = busy;
+        quickBtns.forEach(b => b.disabled = busy);
+    }
+
+    function post(url, body) {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify(body),
+        }).then(r => r.json());
+    }
+
+    /** Jumps to the month the plan starts in, so the new dots are visible. */
+    function goToPlan(data) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', 'calendar');
+        url.searchParams.set('month', data.month);
+        url.searchParams.set('date', data.date);
+        setTimeout(() => { window.location.href = url.toString(); }, 1200);
+    }
+
+    /** The day-by-day preview plus its Add / Discard choice. */
+    function addPreview(data) {
+        const row = document.createElement('div');
+        row.className = 'planner-message';
+        row.innerHTML = '<span class="planner-message-avatar"><i class="bi bi-stars"></i></span>';
+
+        const card = document.createElement('div');
+        card.className = 'planner-preview';
+
+        const heading = document.createElement('div');
+        heading.className = 'planner-preview-title';
+        heading.textContent = data.count + (data.count === 1 ? ' entry' : ' entries');
+        card.appendChild(heading);
+
+        data.preview.forEach(function (line) {
+            const day = document.createElement('div');
+            day.className = 'planner-preview-day';
+            day.textContent = line;
+            card.appendChild(day);
+        });
+
+        const actions = document.createElement('div');
+        actions.className = 'planner-preview-actions';
+
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'btn-preview-add';
+        add.textContent = 'Add to calendar';
+
+        const discard = document.createElement('button');
+        discard.type = 'button';
+        discard.className = 'btn-preview-discard';
+        discard.textContent = 'Discard';
+
+        actions.append(add, discard);
+        card.appendChild(actions);
+        row.appendChild(card);
+        messages.appendChild(row);
+        messages.scrollTop = messages.scrollHeight;
+
+        async function decide(accept) {
+            add.disabled = discard.disabled = true;
+            actions.remove();
+
+            try {
+                const data = await post(confirmEndpoint, { accept });
+                addMessage(data.reply, 'bot');
+                if (accept && data.created > 0 && data.month) return goToPlan(data);
+            } catch (e) {
+                addMessage('I could not save that plan. Please try again.', 'bot');
+            }
+
+            setBusy(false);
+            input.focus();
+        }
+
+        add.addEventListener('click', () => decide(true));
+        discard.addEventListener('click', () => decide(false));
+    }
+
+    async function plan(message) {
+        addMessage(message, 'user');
+        input.value = '';
+        setBusy(true);
+
+        const thinking = addMessage('Building your itinerary…', 'bot');
+
+        try {
+            const data = await post(endpoint, { message });
+            thinking.textContent = data.reply || 'Something went wrong building that plan.';
+
+            // A plan is previewed, never written straight away — the user
+            // confirms before anything lands on the calendar.
+            if (data.awaiting_confirmation) {
+                addPreview(data);
+
+                return;
+            }
+        } catch (e) {
+            thinking.textContent = 'I could not reach the planner. Please try again.';
+        }
+
+        setBusy(false);
+        input.focus();
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const message = input.value.trim();
+        if (message) plan(message);
+    });
+
+    quickBtns.forEach(function (btn) {
+        btn.addEventListener('click', () => plan(btn.textContent.trim()));
+    });
+})();
+@endauth
 </script>
 @endpush

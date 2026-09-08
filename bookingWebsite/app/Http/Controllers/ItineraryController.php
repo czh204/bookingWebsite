@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Ai\Agents\ItineraryPlanner;
 use App\Models\ItineraryEvent;
 use App\Models\Order;
+use App\Services\ItineraryPlanWriter;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class ItineraryController extends Controller
 {
@@ -21,6 +26,17 @@ class ItineraryController extends Controller
         'Family-friendly activities in Tokyo',
         'Hidden gems in Santorini',
     ];
+
+    /**
+     * The planner's working memory for one session: the turns so far, and
+     * the plan built but not yet committed to the calendar.
+     */
+    protected const TURNS_KEY = 'itinerary_planner.turns';
+
+    protected const PENDING_KEY = 'itinerary_planner.pending';
+
+    /** Older turns are dropped — a planning exchange is short by nature. */
+    protected const MAX_TURNS = 8;
 
     /**
      * Left accent colour for a day-panel event, by category. Presentation
@@ -56,6 +72,171 @@ class ItineraryController extends Controller
             'categoryColors' => self::CATEGORY_COLORS,
             'view' => $this->resolveView($request),
         ]);
+    }
+
+    /**
+     * Builds a plan from a natural-language request and writes it onto the
+     * calendar as source = 'ai' entries.
+     *
+     * Signed-in only: the entries belong to a user, and there is no
+     * calendar to write to otherwise.
+     */
+    /**
+     * Builds a plan from a natural-language request.
+     *
+     * Nothing is written to the calendar here — the plan is held in the
+     * session and previewed, and only confirm() commits it. Without that
+     * step a half-understood request would silently scatter entries across
+     * the user's calendar for them to delete by hand.
+     */
+    public function plan(Request $request, ItineraryPlanWriter $writer): JsonResponse
+    {
+        $data = $request->validate([
+            'message' => ['required', 'string', 'max:500'],
+        ]);
+
+        $turns = $this->plannerTurns($request);
+
+        try {
+            // The agent is prompted with the whole conversation, not just
+            // the newest line. Prompting with the line alone is what made
+            // it ask "which destination?" immediately after being told
+            // Paris — each message arrived with no memory of the last.
+            $plan = (new ItineraryPlanner)
+                ->prompt($this->composePrompt($turns, $data['message']))
+                ->toArray();
+        } catch (Throwable $e) {
+            Log::error('Itinerary planner failed', ['message' => $e->getMessage(), 'exception' => $e]);
+
+            return response()->json([
+                'reply' => "I couldn't build that plan just now — please try again in a moment.",
+                'awaiting_confirmation' => false,
+            ], 500);
+        }
+
+        // Validated now rather than at confirm time, so the preview shows
+        // exactly what would be written — not what the model claimed.
+        $events = $writer->validateAll($plan);
+        $reply = trim((string) ($plan['summary'] ?? ''));
+
+        $this->rememberTurn($request, $data['message'], $reply !== ''
+            ? $reply
+            : 'Asked for more detail about the trip.');
+
+        if ($events === []) {
+            $request->session()->forget(self::PENDING_KEY);
+
+            return response()->json([
+                'reply' => $reply !== ''
+                    ? $reply
+                    : 'I need a bit more to go on — tell me where you want to go, roughly when, and for how long.',
+                'awaiting_confirmation' => false,
+            ]);
+        }
+
+        $request->session()->put(self::PENDING_KEY, [
+            'title' => (string) ($plan['title'] ?? 'Your trip'),
+            'events' => $events,
+        ]);
+
+        return response()->json([
+            'reply' => $reply,
+            'awaiting_confirmation' => true,
+            'preview' => $this->previewLines($events),
+            'count' => count($events),
+        ]);
+    }
+
+    /**
+     * Commits the plan currently held in the session, or discards it.
+     */
+    public function confirmPlan(Request $request, ItineraryPlanWriter $writer): JsonResponse
+    {
+        $data = $request->validate([
+            'accept' => ['required', 'boolean'],
+        ]);
+
+        $pending = $request->session()->get(self::PENDING_KEY);
+        $request->session()->forget(self::PENDING_KEY);
+
+        if (! $data['accept']) {
+            return response()->json(['reply' => 'No problem — nothing was added. Tell me what to change.', 'created' => 0]);
+        }
+
+        if (! is_array($pending) || $pending['events'] === []) {
+            return response()->json(['reply' => "That plan has expired — ask me to build it again.", 'created' => 0]);
+        }
+
+        $result = $writer->store($pending['events'], $pending['title'], (int) auth()->id());
+        $count = $result['created'];
+
+        return response()->json([
+            'reply' => "Added {$count} ".($count === 1 ? 'entry' : 'entries').' to your calendar'
+                .($result['first_date'] ? ', starting '.$result['first_date']->format('j M Y').'.' : '.'),
+            'created' => $count,
+            // Where the calendar should jump to so the new dots are visible.
+            'month' => $result['first_date']?->format('Y-m'),
+            'date' => $result['first_date']?->toDateString(),
+        ]);
+    }
+
+    /**
+     * The conversation so far, oldest first. Session-scoped and capped —
+     * this is a working memory for one planning session, not a transcript
+     * worth persisting.
+     */
+    protected function plannerTurns(Request $request): array
+    {
+        return (array) $request->session()->get(self::TURNS_KEY, []);
+    }
+
+    protected function rememberTurn(Request $request, string $user, string $planner): void
+    {
+        $turns = $this->plannerTurns($request);
+        $turns[] = ['user' => $user, 'planner' => $planner];
+
+        $request->session()->put(self::TURNS_KEY, array_slice($turns, -self::MAX_TURNS));
+    }
+
+    /**
+     * Folds the prior turns into the prompt text. The agent returns
+     * structured JSON rather than chat messages, so history is supplied as
+     * context above the newest request instead of as a message array.
+     */
+    protected function composePrompt(array $turns, string $message): string
+    {
+        if ($turns === []) {
+            return $message;
+        }
+
+        $history = collect($turns)
+            ->map(fn (array $t) => "User: {$t['user']}\nPlanner: {$t['planner']}")
+            ->implode("\n");
+
+        return "Conversation so far:\n{$history}\n\nUser's latest message: {$message}\n\n"
+            .'Build the plan using everything above. Details given earlier still apply — '
+            .'do not ask again for something the user has already told you. If the latest '
+            .'message only changes one detail (a date, a length, a preference), rebuild the '
+            .'same trip with that change applied and return the full plan.';
+    }
+
+    /**
+     * A compact day-by-day preview: one line per day, so a 20-entry plan
+     * stays readable inside a narrow chat panel.
+     *
+     * @return list<string>
+     */
+    protected function previewLines(array $events): array
+    {
+        return collect($events)
+            ->groupBy('date')
+            ->map(function ($dayEvents, $date) {
+                $titles = collect($dayEvents)->pluck('title')->implode(' · ');
+
+                return CarbonImmutable::parse($date)->format('D j M').' — '.$titles;
+            })
+            ->values()
+            ->all();
     }
 
     /**
