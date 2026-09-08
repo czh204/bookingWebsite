@@ -61,13 +61,24 @@ class ItineraryController extends Controller
 
         $selectedEvents = $eventsByDate->get($selected->toDateString(), collect());
 
+        // Split once here rather than twice in the view: isPast() walks the
+        // order's items and events, so it shouldn't be called per row.
+        [$pastBookings, $bookings] = $this->loadBookings()
+            ->partition(fn (Order $order) => $order->isPast());
+
         return view('itinerary.index', [
             'month' => $month,
             'selected' => $selected,
             'weeks' => $this->buildWeeks($month, $selected, $eventsByDate),
             'plannedEvents' => $selectedEvents->where('source', ItineraryEvent::SOURCE_AI)->values(),
             'bookingEvents' => $selectedEvents->where('source', ItineraryEvent::SOURCE_BOOKING)->values(),
-            'bookings' => $this->loadBookings(),
+            'bookings' => $bookings->values(),
+            // Most recently travelled first, so the trip you just got back
+            // from is at the top rather than buried under older ones.
+            'pastBookings' => $pastBookings
+                ->sortByDesc(fn (Order $order) => $order->travelDate())
+                ->values(),
+            'refundHours' => Order::REFUND_PROCESSING_HOURS,
             'quickQuestions' => self::QUICK_QUESTIONS,
             'categoryColors' => self::CATEGORY_COLORS,
             'view' => $this->resolveView($request),
@@ -256,6 +267,45 @@ class ItineraryController extends Controller
         }
 
         return 'bookings';
+    }
+
+    /**
+     * Refund a booking.
+     *
+     * Approval is automatic — this is a mock payment system, so there is
+     * no acquirer to ask and nothing to actually credit back. What the
+     * customer is told is deliberately honest about that: Voyagr has
+     * approved it, the money moves within 48 hours, and the final timing
+     * belongs to whoever holds it (see the FAQ).
+     */
+    public function refund(Request $request, Order $order)
+    {
+        // Ownership, not just authentication: without this, any signed-in
+        // user could refund someone else's booking by guessing its id.
+        abort_unless($order->user_id === auth()->id(), 404);
+
+        // Re-checked server side. The button is hidden on a booking that
+        // can't be refunded, but a hidden button is a UI convenience, not
+        // a control — a replayed POST has to be turned away here.
+        if (! $order->isRefundable()) {
+            return redirect()
+                ->route('itinerary.index')
+                ->with('refund_error', "Booking {$order->reference} can no longer be refunded.");
+        }
+
+        $order->update([
+            'status' => 'refunded',
+            'refunded_at' => now(),
+        ]);
+
+        // The calendar entries go with it: a refunded booking is not a
+        // trip you're taking, so leaving it on the calendar would have the
+        // page contradicting the status shown right next to it.
+        $order->events()->delete();
+
+        return redirect()
+            ->route('itinerary.index')
+            ->with('refund_success', $order->reference);
     }
 
     /**
