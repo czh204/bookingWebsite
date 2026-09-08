@@ -47,6 +47,11 @@ Route::post('/cart/promo', [CartController::class, 'applyPromo'])->name('cart.pr
 // back the confirmation, which carries an email and billing address —
 // both require an account.
 Route::middleware('auth')->group(function () {
+    // Refunding is destructive and belongs to one account, so it sits
+    // behind auth; the controller checks ownership on top of that.
+    Route::post('/bookings/{order}/refund', [ItineraryController::class, 'refund'])
+        ->name('itinerary.refund');
+
     Route::get('/checkout', [CheckoutController::class, 'show'])->name('checkout.show');
     Route::post('/checkout', [CheckoutController::class, 'pay'])->name('checkout.pay');
     Route::get('/checkout/confirmation/{reference}', [CheckoutController::class, 'confirmation'])

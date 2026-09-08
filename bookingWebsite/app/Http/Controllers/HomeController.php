@@ -31,6 +31,12 @@ class HomeController extends Controller
                         .'partial, based on the fare type you booked.',
                 ],
                 [
+                    'question' => 'How long does a refund take?',
+                    'answer' => 'Once Voyagr approves the refund it is processed within 48 hours. How long it then '
+                        .'takes to appear is up to the airline, hotel or attraction operator and your bank, so the '
+                        .'money may land a few days after that.',
+                ],
+                [
                     'question' => 'Can I change a booking after paying?',
                     'answer' => 'Not through the website. Changes are subject to the airline or hotel\'s own policies, '
                         .'so call the phone number shown on the booking to ask them directly.',

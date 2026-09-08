@@ -487,6 +487,85 @@
 
     .booking-jump:hover { text-decoration: underline; }
 
+    /* ---------- Refund ---------- */
+    .booking-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        flex-wrap: wrap;
+        margin-top: .75rem;
+    }
+
+    .booking-actions .booking-jump { margin-top: 0; }
+
+    .btn-refund {
+        border: 1px solid #e4b4b4;
+        background: #fff;
+        color: #b91c1c;
+        border-radius: .55rem;
+        font-size: .82rem;
+        font-weight: 600;
+        padding: .4rem .9rem;
+    }
+
+    .btn-refund:hover { background: #fdf2f2; color: #991b1b; }
+
+    /* Approval notice shown after a refund is confirmed. */
+    .refund-notice {
+        display: flex;
+        align-items: flex-start;
+        gap: .7rem;
+        border: 1px solid #bfe3cd;
+        background: #f2fbf5;
+        border-radius: .7rem;
+        padding: .9rem 1rem;
+        margin-bottom: 1rem;
+        font-size: .86rem;
+        color: #14532d;
+    }
+
+    .refund-notice i { font-size: 1.1rem; color: #16a34a; flex-shrink: 0; }
+    .refund-notice strong { display: block; margin-bottom: .15rem; }
+    .refund-notice-sub { color: #3f6b4e; font-size: .8rem; margin-top: .3rem; }
+    .refund-notice-sub a { color: inherit; }
+
+    .refund-notice.is-error {
+        border-color: #e4b4b4;
+        background: #fdf2f2;
+        color: #7f1d1d;
+    }
+
+    .refund-notice.is-error i { color: #b91c1c; }
+
+    /* Per-row line on an already-refunded booking. */
+    .booking-refunded-note {
+        margin-top: .7rem;
+        font-size: .8rem;
+        color: var(--text-muted);
+    }
+
+    .booking-refunded-note i { color: #16a34a; }
+
+    /* ---------- Past bookings ---------- */
+    .past-bookings-card { margin-top: 1.25rem; padding: 1.25rem; }
+
+    /* Dimmed so the section reads as history at a glance, without hiding
+       anything — the rows are still fully legible. */
+    .past-bookings-card .booking-row { background: var(--cream); }
+    .past-bookings-card .booking-item-icon { background: #e8e6df; color: #6b7280; }
+
+    .past-badge {
+        border-radius: 999px;
+        background: #ecebe6;
+        color: #4b5563;
+        font-size: .68rem;
+        font-weight: 700;
+        padding: .12rem .6rem;
+        text-transform: uppercase;
+        letter-spacing: .03em;
+    }
+
     /* ---------- Empty states ---------- */
     .planner-empty {
         text-align: center;
@@ -704,69 +783,102 @@
 
     {{-- ================= MY BOOKINGS (landing view) ================= --}}
     <div class="planner-card bookings-card {{ $view === 'bookings' ? '' : 'd-none' }}" id="myBookings">
+
+        {{-- Shown once, after the redirect back from a refund. --}}
+        @if (session('refund_success'))
+            <div class="refund-notice">
+                <i class="bi bi-check-circle-fill"></i>
+                <div>
+                    <strong>Refund approved by Voyagr</strong>
+                    Booking {{ session('refund_success') }} has been approved for a refund. It will be
+                    processed within {{ $refundHours }} hours.
+                    <div class="refund-notice-sub">
+                        When the money reaches you depends on the airline, hotel or attraction operator
+                        and your bank, so it may take a few days longer to appear.
+                        See the <a href="{{ route('faq') }}">FAQ</a> for the full policy.
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        @if (session('refund_error'))
+            <div class="refund-notice is-error">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <div>{{ session('refund_error') }}</div>
+            </div>
+        @endif
+
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
             @auth
                 <span class="bookings-count">
-                    {{ $bookings->count() }} booking{{ $bookings->count() === 1 ? '' : 's' }}
+                    {{ $bookings->count() }} upcoming booking{{ $bookings->count() === 1 ? '' : 's' }}
                 </span>
             @endauth
         </div>
-                @forelse ($bookings as $booking)
-                    <div class="booking-row">
-                        <div class="booking-row-head">
-                            <div>
-                                <span class="booking-ref">{{ $booking->reference }}</span>
-                                <span class="booking-status status-{{ $booking->status }}">{{ $booking->status }}</span>
-                            </div>
-                            <div class="booking-total">${{ number_format($booking->total, 2) }}</div>
-                        </div>
 
-                        <div class="booking-meta">
-                            <span><i class="bi bi-calendar3"></i> Booked {{ $booking->created_at->format('j M Y') }}</span>
-                            <span><i class="bi bi-credit-card"></i> {{ $booking->payment_label }}</span>
-                            <span><i class="bi bi-bag"></i> {{ $booking->items->count() }} item{{ $booking->items->count() === 1 ? '' : 's' }}</span>
-                        </div>
+        @forelse ($bookings as $booking)
+            @include('itinerary.partials.bookingRow', ['booking' => $booking, 'past' => false])
+        @empty
+            <div class="planner-empty">
+                <i class="bi bi-receipt"></i>
+                @guest
+                    <a href="{{ route('login') }}">Sign in</a> to see your bookings here.
+                @else
+                    No upcoming bookings.
+                    <a href="{{ route('flights.index') }}">Find something to book</a>
+                    and it'll appear here and on the calendar.
+                @endguest
+            </div>
+        @endforelse
+    </div>
 
-                        @foreach ($booking->items as $item)
-                            <div class="booking-item">
-                                <span class="booking-item-icon">
-                                    <i class="bi {{ ['flight' => 'bi-airplane', 'hotel' => 'bi-building', 'attraction' => 'bi-ticket-perforated'][$item->type] ?? 'bi-dot' }}"></i>
-                                </span>
-                                <div class="flex-grow-1">
-                                    <div class="booking-item-title">{{ $item->title }}</div>
-                                    <div class="booking-item-meta">
-                                        @if ($item->booking_date)
-                                            <strong>{{ $item->booking_date->format('j M Y') }}</strong> ·
-                                        @endif
-                                        {{ $item->meta }}@if ($item->quantity > 1) · ×{{ $item->quantity }}@endif
-                                    </div>
-                                </div>
-                                <div class="booking-item-price">${{ number_format($item->line_total, 2) }}</div>
-                            </div>
-                        @endforeach
+    {{-- ================= PAST BOOKINGS ================= --}}
+    {{-- Only worth a section once there is something in it, so a new
+         account isn't greeted by an empty box. --}}
+    @if ($pastBookings->isNotEmpty())
+        <div class="planner-card past-bookings-card {{ $view === 'bookings' ? '' : 'd-none' }}" id="pastBookings">
+            <h2 class="bookings-title">Past Bookings</h2>
+            <p class="bookings-subtitle">
+                Trips that have already been and gone — kept here for your records.
+            </p>
 
-                        @if ($booking->calendar_date)
-                            {{-- Opens the calendar view on the month and day
-                                 this booking's first entry sits on. --}}
-                            <a class="booking-jump"
-                               href="{{ route('itinerary.index', ['view' => 'calendar', 'month' => $booking->calendar_date->format('Y-m'), 'date' => $booking->calendar_date->toDateString()]) }}">
-                                <i class="bi bi-calendar-check"></i>
-                                Show on calendar — {{ $booking->calendar_date->format('j M Y') }}
-                            </a>
-                        @endif
-                    </div>
-                @empty
-                    <div class="planner-empty">
-                        <i class="bi bi-receipt"></i>
-                        @guest
-                            <a href="{{ route('login') }}">Sign in</a> to see your bookings here.
-                        @else
-                            No bookings yet.
-                            <a href="{{ route('flights.index') }}">Find something to book</a>
-                            and it'll appear here and on the calendar.
-                        @endguest
-                    </div>
-                @endforelse
+            @foreach ($pastBookings as $booking)
+                @include('itinerary.partials.bookingRow', ['booking' => $booking, 'past' => true])
+            @endforeach
+        </div>
+    @endif
+</div>
+
+{{-- One dialog shared by every refund button; the button clicked fills in
+     the reference, the amount and the form's action. --}}
+<div class="modal fade" id="refundModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Request a refund?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">
+                    You're about to request a refund for booking
+                    <strong id="refundModalRef"></strong> of
+                    <strong id="refundModalTotal"></strong>.
+                </p>
+                <p class="mb-0 text-muted" style="font-size: .86rem;">
+                    This cancels the booking and removes it from your calendar. Approved refunds are
+                    processed within {{ $refundHours }} hours, subject to the airline, hotel or
+                    attraction operator — see the <a href="{{ route('faq') }}">FAQ</a>.
+                    This cannot be undone.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep Booking</button>
+                <form method="POST" id="refundForm" class="d-inline">
+                    @csrf
+                    <button type="submit" class="btn btn-danger">Confirm Refund</button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -774,6 +886,36 @@
 
 @push('scripts')
 <script>
+(function () {
+    // ----- Refund confirmation -----
+    // Its own block: the planner-panel code below returns early on the
+    // bookings view, which is exactly where these buttons live.
+    var modalEl = document.getElementById('refundModal');
+    if (!modalEl) return;
+
+    var modal = new bootstrap.Modal(modalEl);
+    var form = document.getElementById('refundForm');
+    var refEl = document.getElementById('refundModalRef');
+    var totalEl = document.getElementById('refundModalTotal');
+
+    document.querySelectorAll('.js-refund-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            // Read straight off the button, so the dialog can never show
+            // one booking's details while pointing at another's.
+            form.action = btn.dataset.action;
+            refEl.textContent = btn.dataset.reference;
+            totalEl.textContent = btn.dataset.total;
+            modal.show();
+        });
+    });
+
+    // A refund takes a moment to post; without this a second click would
+    // submit the same form twice.
+    form.addEventListener('submit', function () {
+        form.querySelector('button[type="submit"]').disabled = true;
+    });
+})();
+
 (function () {
     // ----- Hide / show the AI planner panel -----
     // Only rendered in the calendar view, so bail out on the bookings
