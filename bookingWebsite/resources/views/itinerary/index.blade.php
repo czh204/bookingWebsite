@@ -442,6 +442,13 @@
         flex-shrink: 0;
     }
 
+    .day-event-tz {
+        font-size: .66rem;
+        color: var(--text-muted);
+        letter-spacing: .02em;
+        margin-top: .1rem;
+    }
+
     .day-event-accent { width: 3px; align-self: stretch; border-radius: 2px; flex-shrink: 0; }
     .day-event-title { font-weight: 600; color: var(--navy-dark); font-size: .92rem; }
     .day-event-location { font-size: .8rem; color: var(--text-muted); }
@@ -452,6 +459,50 @@
         color: var(--text-muted);
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         white-space: nowrap;
+    }
+
+    /* Sits where .day-event-ref sits on a booking row, so planned and
+       booked rows keep the same shape. */
+    .btn-delete-event {
+        margin-left: auto;
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        padding: .25rem .4rem;
+        border-radius: .4rem;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+
+    .btn-delete-event:hover { background: #fee2e2; color: #b91c1c; }
+    .btn-delete-event:disabled { opacity: .5; }
+
+    .btn-clear-activities {
+        background: #fff;
+        border: 1px solid var(--border-soft);
+        border-radius: .6rem;
+        color: #b91c1c;
+        font-weight: 500;
+        font-size: .9rem;
+        padding: .5rem 1rem;
+        white-space: nowrap;
+    }
+
+    .btn-clear-activities:hover:not(:disabled) { background: #fee2e2; color: #991b1b; }
+    .btn-clear-activities:disabled { opacity: .45; cursor: not-allowed; }
+
+    .clear-scope-list {
+        max-height: 220px;
+        overflow-y: auto;
+        border: 1px solid var(--border-soft);
+        border-radius: .5rem;
+        padding: .5rem .75rem;
+    }
+
+    .activity-form-error {
+        color: #b91c1c;
+        font-size: .82rem;
+        margin-top: .5rem;
     }
 
     /* ---------- My Bookings ---------- */
@@ -788,17 +839,45 @@
                             · {{ $bookingEvents->count() }} booking{{ $bookingEvents->count() === 1 ? '' : 's' }}
                         </div>
                     </div>
-                    <button type="button" class="btn btn-add-activity" disabled
-                            title="Adding activities isn't available yet">
-                        <i class="bi bi-plus-lg me-1"></i> Add Activity
-                    </button>
+                    @auth
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-clear-activities" id="clearActivitiesBtn"
+                                    data-date="{{ $selected->toDateString() }}"
+                                    @disabled($plannedEvents->isEmpty())
+                                    title="{{ $plannedEvents->isEmpty() ? 'Nothing planned to clear' : 'Clear planned activities' }}">
+                                <i class="bi bi-eraser me-1"></i> Clear
+                            </button>
+                            <button type="button" class="btn btn-add-activity" id="addActivityBtn"
+                                    data-date="{{ $selected->toDateString() }}">
+                                <i class="bi bi-plus-lg me-1"></i> Add Activity
+                            </button>
+                        </div>
+                    @else
+                        <button type="button" class="btn btn-add-activity" disabled
+                                title="Sign in to add activities">
+                            <i class="bi bi-plus-lg me-1"></i> Add Activity
+                        </button>
+                    @endauth
                 </div>
 
                 @if ($bookingEvents->isNotEmpty())
                     <div class="day-group-label"><i class="bi bi-calendar-check"></i> My Bookings</div>
                     @foreach ($bookingEvents as $event)
                         <div class="day-event">
-                            <div class="day-event-time">{{ $event->time_label }}</div>
+                            <div class="day-event-time">
+                                {{ $event->time_label }}
+                                {{-- A flight time is local to its airport, not to
+                                     the city the rest of the day happens in. --}}
+                                @if ($event->time_zone_hint)
+                                    <div class="day-event-tz">{{ $event->time_zone_hint }} time</div>
+                                @endif
+                                {{-- The same moment where the traveller is
+                                     heading, which is the clock they'll be
+                                     living on when they land. --}}
+                                @if ($event->arrival_zone_time)
+                                    <div class="day-event-tz">= {{ $event->arrival_zone_time }}</div>
+                                @endif
+                            </div>
                             <div class="day-event-accent" style="background: {{ $categoryColors[$event->category] ?? 'var(--gold)' }};"></div>
                             <div>
                                 <div class="day-event-title">{{ $event->title }}</div>
@@ -817,7 +896,20 @@
                     <div class="day-group-label"><i class="bi bi-stars"></i> Planned Events</div>
                     @foreach ($plannedEvents as $event)
                         <div class="day-event">
-                            <div class="day-event-time">{{ $event->time_label }}</div>
+                            <div class="day-event-time">
+                                {{ $event->time_label }}
+                                {{-- A flight time is local to its airport, not to
+                                     the city the rest of the day happens in. --}}
+                                @if ($event->time_zone_hint)
+                                    <div class="day-event-tz">{{ $event->time_zone_hint }} time</div>
+                                @endif
+                                {{-- The same moment where the traveller is
+                                     heading, which is the clock they'll be
+                                     living on when they land. --}}
+                                @if ($event->arrival_zone_time)
+                                    <div class="day-event-tz">= {{ $event->arrival_zone_time }}</div>
+                                @endif
+                            </div>
                             <div class="day-event-accent" style="background: {{ $categoryColors[$event->category] ?? '#2563eb' }};"></div>
                             <div>
                                 <div class="day-event-title">{{ $event->title }}</div>
@@ -825,6 +917,16 @@
                                     <div class="day-event-location">{{ $event->location }}</div>
                                 @endif
                             </div>
+                            @auth
+                                {{-- Planned entries only. Bookings are rendered
+                                     above and deliberately have no delete. --}}
+                                <button type="button" class="btn-delete-event js-delete-event"
+                                        data-id="{{ $event->id }}"
+                                        data-title="{{ $event->title }}"
+                                        aria-label="Remove {{ $event->title }}">
+                                    <i class="bi bi-trash3"></i>
+                                </button>
+                            @endauth
                         </div>
                     @endforeach
                 @endif
@@ -945,6 +1047,151 @@
         </div>
     </div>
 </div>
+
+@auth
+{{-- ---------- Clear activities ---------- --}}
+<div class="modal fade" id="clearActivitiesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+        <div class="modal-content" style="border-radius: .9rem; border: none;">
+            <div class="modal-header">
+                <h5 class="modal-title font-serif">Clear Planned Activities</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="clearActivitiesForm" novalidate>
+                <div class="modal-body">
+                    {{-- Narrowest scope first, so the destructive one is
+                         the option you have to travel furthest to reach. --}}
+                    @if ($plannedEvents->isNotEmpty())
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="scope" value="selected" id="scopeSelected" checked>
+                            <label class="form-check-label" for="scopeSelected">Only the ones I pick</label>
+                        </div>
+                        <div class="clear-scope-list mb-3" id="clearScopeList">
+                            @foreach ($plannedEvents as $event)
+                                <div class="form-check">
+                                    <input class="form-check-input js-clear-id" type="checkbox"
+                                           value="{{ $event->id }}" id="clearEvent{{ $event->id }}">
+                                    <label class="form-check-label" for="clearEvent{{ $event->id }}">
+                                        <span class="text-muted">{{ $event->time_label }}</span> — {{ $event->title }}
+                                    </label>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="scope" value="day" id="scopeDay"
+                               @if ($plannedEvents->isEmpty()) checked @endif>
+                        <label class="form-check-label" for="scopeDay">
+                            Everything on {{ $selected->format('j M Y') }}
+                        </label>
+                    </div>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="scope" value="range" id="scopeRange">
+                        <label class="form-check-label" for="scopeRange">A range of dates</label>
+                    </div>
+                    <div class="row g-2 mb-3 ms-1" id="clearRangeFields" hidden>
+                        <div class="col-6">
+                            <label class="form-label" for="clearFrom">From</label>
+                            <input type="date" class="form-control" id="clearFrom" value="{{ $selected->toDateString() }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="clearTo">To</label>
+                            <input type="date" class="form-control" id="clearTo" value="{{ $selected->toDateString() }}">
+                        </div>
+                    </div>
+
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="scope" value="all" id="scopeAll">
+                        <label class="form-check-label" for="scopeAll">
+                            Every planned activity <span class="text-muted">(all dates)</span>
+                        </label>
+                    </div>
+
+                    <div class="form-text mt-3">
+                        <i class="bi bi-shield-check me-1"></i>
+                        Bookings are never removed — only planned activities. Cancel a booking
+                        from My Bookings instead.
+                    </div>
+
+                    <div class="activity-form-error" id="clearError" hidden></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-clear-activities" id="clearSubmit">Clear</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ---------- Add activity ---------- --}}
+<div class="modal fade" id="addActivityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+        <div class="modal-content" style="border-radius: .9rem; border: none;">
+            <div class="modal-header">
+                <h5 class="modal-title font-serif">Add Activity</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="addActivityForm" novalidate>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="acTitle">What is it?</label>
+                        <input type="text" class="form-control" id="acTitle" name="title"
+                               maxlength="191" placeholder="Dinner at Le Comptoir" required>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label" for="acDate">Date</label>
+                            <input type="date" class="form-control" id="acDate" name="event_date" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="acCategory">Category</label>
+                            <select class="form-select" id="acCategory" name="category">
+                                @foreach (\App\Ai\Agents\ItineraryPlanner::CATEGORIES as $category)
+                                    <option value="{{ $category }}" @selected($category === 'activity')>
+                                        {{ ucfirst($category) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label" for="acStart">Start</label>
+                            <input type="time" class="form-control" id="acStart" name="start_time">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="acEnd">End</label>
+                            <input type="time" class="form-control" id="acEnd" name="end_time">
+                        </div>
+                    </div>
+                    {{-- Says why the times matter, since leaving them empty is
+                         the way out of a clash rather than a lesser option. --}}
+                    <div class="form-text">
+                        Leave both empty for an all-day entry. Timed entries can't overlap
+                        anything already on that day.
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="form-label" for="acLocation">Where <span class="text-muted">(optional)</span></label>
+                        <input type="text" class="form-control" id="acLocation" name="location" maxlength="191">
+                    </div>
+
+                    <div class="activity-form-error" id="acError" hidden></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-add-activity" id="acSubmit">Add to calendar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endauth
 
 @endsection
 
@@ -1156,6 +1403,221 @@
 
     quickBtns.forEach(function (btn) {
         btn.addEventListener('click', () => plan(btn.textContent.trim()));
+    });
+})();
+
+// ----- Add / delete activity -----
+(function () {
+    const token = document.querySelector('meta[name="csrf-token"]').content;
+
+    function post(url, options) {
+        return fetch(url, Object.assign({
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': token,
+            },
+        }, options));
+    }
+
+    // ----- Add -----
+    const openBtn = document.getElementById('addActivityBtn');
+    const form = document.getElementById('addActivityForm');
+
+    if (openBtn && form) {
+        const modalEl = document.getElementById('addActivityModal');
+        const modal = new bootstrap.Modal(modalEl);
+        const error = document.getElementById('acError');
+        const submit = document.getElementById('acSubmit');
+        const dateInput = document.getElementById('acDate');
+
+        openBtn.addEventListener('click', function () {
+            form.reset();
+            error.hidden = true;
+            // Defaults to the day being viewed - the button lives in that
+            // day's panel, so that is the day being added to.
+            dateInput.value = openBtn.dataset.date;
+            modal.show();
+        });
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            error.hidden = true;
+            submit.disabled = true;
+
+            const payload = Object.fromEntries(new FormData(form).entries());
+            // An empty time input submits "", which fails date_format:H:i.
+            // Absent means all-day; blank means nothing.
+            ['start_time', 'end_time', 'location'].forEach(function (key) {
+                if (!payload[key]) delete payload[key];
+            });
+
+            try {
+                const res = await post(@json(route('itinerary.events.store')), {
+                    method: 'POST',
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    // 422 carries either a clash message or Laravel's field
+                    // errors; show whichever came back.
+                    error.textContent = data.message
+                        || Object.values(data.errors || {}).flat()[0]
+                        || 'Could not add that activity.';
+                    error.hidden = false;
+                    submit.disabled = false;
+
+                    return;
+                }
+
+                // Reload onto the day it landed on, so the new entry is
+                // visible rather than sitting on an unviewed day.
+                const url = new URL(window.location.href);
+                url.searchParams.set('view', 'calendar');
+                url.searchParams.set('date', data.date);
+                url.searchParams.set('month', data.date.slice(0, 7));
+                window.location.href = url.toString();
+            } catch (err) {
+                error.textContent = 'Could not reach the server. Please try again.';
+                error.hidden = false;
+                submit.disabled = false;
+            }
+        });
+    }
+
+    // ----- Clear in bulk -----
+    const clearBtn = document.getElementById('clearActivitiesBtn');
+    const clearForm = document.getElementById('clearActivitiesForm');
+
+    if (clearBtn && clearForm) {
+        const clearModalEl = document.getElementById('clearActivitiesModal');
+        const clearModal = new bootstrap.Modal(clearModalEl);
+        const clearError = document.getElementById('clearError');
+        const clearSubmit = document.getElementById('clearSubmit');
+        const rangeFields = document.getElementById('clearRangeFields');
+        const endpoint = @json(route('itinerary.events.clear'));
+
+        clearBtn.addEventListener('click', function () {
+            clearError.hidden = true;
+            clearModal.show();
+        });
+
+        // The date inputs are only meaningful for the range scope, so they
+        // stay out of the way until it is chosen.
+        clearForm.querySelectorAll('input[name="scope"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                rangeFields.hidden = radio.value !== 'range' || !radio.checked;
+            });
+        });
+
+        function payload() {
+            const scope = clearForm.querySelector('input[name="scope"]:checked').value;
+            const body = { scope };
+
+            if (scope === 'selected') {
+                body.ids = [...clearForm.querySelectorAll('.js-clear-id:checked')].map(c => Number(c.value));
+            } else if (scope === 'day') {
+                body.date = clearBtn.dataset.date;
+            } else if (scope === 'range') {
+                body.from = document.getElementById('clearFrom').value;
+                body.to = document.getElementById('clearTo').value;
+            }
+
+            return body;
+        }
+
+        clearForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            clearError.hidden = true;
+            clearSubmit.disabled = true;
+
+            const body = payload();
+
+            if (body.scope === 'selected' && (!body.ids || body.ids.length === 0)) {
+                clearError.textContent = 'Pick at least one activity, or choose a wider option.';
+                clearError.hidden = false;
+                clearSubmit.disabled = false;
+
+                return;
+            }
+
+            try {
+                // Counted first, then confirmed against that count, so the
+                // number in the prompt is the number actually removed -
+                // never an estimate the user has to trust.
+                const check = await post(endpoint, {
+                    method: 'POST',
+                    body: JSON.stringify(Object.assign({ dry_run: true }, body)),
+                });
+                const preview = await check.json();
+
+                if (!check.ok) {
+                    clearError.textContent = preview.message
+                        || Object.values(preview.errors || {}).flat()[0]
+                        || 'Could not work out what to clear.';
+                    clearError.hidden = false;
+                    clearSubmit.disabled = false;
+
+                    return;
+                }
+
+                if (preview.count === 0 || !window.confirm(preview.message)) {
+                    if (preview.count === 0) {
+                        clearError.textContent = preview.message;
+                        clearError.hidden = false;
+                    }
+                    clearSubmit.disabled = false;
+
+                    return;
+                }
+
+                const res = await post(endpoint, { method: 'POST', body: JSON.stringify(body) });
+
+                if (!res.ok) {
+                    clearError.textContent = 'Could not clear those activities.';
+                    clearError.hidden = false;
+                    clearSubmit.disabled = false;
+
+                    return;
+                }
+
+                window.location.reload();
+            } catch (err) {
+                clearError.textContent = 'Could not reach the server. Please try again.';
+                clearError.hidden = false;
+                clearSubmit.disabled = false;
+            }
+        });
+    }
+
+    // ----- Delete -----
+    document.querySelectorAll('.js-delete-event').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            if (!window.confirm(`Remove "${btn.dataset.title}" from your calendar?`)) return;
+
+            btn.disabled = true;
+
+            try {
+                const res = await post('/ai-planner/events/' + btn.dataset.id, { method: 'DELETE' });
+
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    alert(data.message || 'Could not remove that activity.');
+                    btn.disabled = false;
+
+                    return;
+                }
+
+                // Drop the row rather than reloading: the rest of the day
+                // is unchanged, and a reload would lose the scroll position.
+                const row = btn.closest('.day-event');
+                if (row) row.remove();
+            } catch (err) {
+                alert('Could not reach the server. Please try again.');
+                btn.disabled = false;
+            }
+        });
     });
 })();
 @endauth

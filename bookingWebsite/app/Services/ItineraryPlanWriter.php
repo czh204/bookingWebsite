@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Ai\Agents\ItineraryPlanner;
 use App\Models\ItineraryEvent;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Validates a planner response and writes it onto the calendar.
@@ -18,6 +19,14 @@ use Carbon\CarbonImmutable;
  */
 class ItineraryPlanWriter
 {
+    /**
+     * The longest trip a single plan is assumed to describe. Used only to
+     * spot a mis-dated entry, not to cap the plan itself.
+     */
+    public const MAX_TRIP_DAYS = 60;
+
+    public function __construct(protected ItinerarySchedule $schedule = new ItinerarySchedule) {}
+
     /**
      * Validates a whole plan and returns only the entries that could
      * actually be written.
@@ -42,7 +51,62 @@ class ItineraryPlanWriter
             }
         }
 
-        return $valid;
+        return $this->repairYearSlips($valid);
+    }
+
+    /**
+     * Pulls back entries the model dated a year late.
+     *
+     * A trip that crosses new year's - or, far more often, one that simply
+     * crosses from December into January or September into October - comes
+     * back with the later days carrying the wrong year: "30 Sept 2026"
+     * followed by "1 Oct 2027". Each date is individually valid, so
+     * validate() has no reason to reject them, and the trip silently
+     * scatters across two years with most of it a year out of view.
+     *
+     * The repair is deliberately narrow. An entry is only moved when
+     * shifting its year back lands it inside a plausible trip window from
+     * the earliest date, which means a genuine "book me next October" stays
+     * exactly where the user asked for it.
+     *
+     * @param  list<array{date: string, ...}>  $events
+     * @return list<array{date: string, ...}>
+     */
+    protected function repairYearSlips(array $events): array
+    {
+        if ($events === []) {
+            return $events;
+        }
+
+        $start = CarbonImmutable::parse(min(array_column($events, 'date')));
+
+        foreach ($events as $index => $row) {
+            $date = CarbonImmutable::parse($row['date']);
+
+            // abs(): Carbon 3's diffInDays is signed, so a date a year
+            // ahead reads as -366 and would pass an unsigned check.
+            if (abs($date->diffInDays($start)) <= self::MAX_TRIP_DAYS) {
+                continue;
+            }
+
+            // Try the same day and month in the trip's own year, and the
+            // year after it, so a trip that really does cross new year
+            // still resolves forwards rather than backwards.
+            foreach ([$start->year, $start->year + 1] as $year) {
+                $shifted = $date->setYear($year);
+
+                if ($shifted->gte($start) && abs($shifted->diffInDays($start)) <= self::MAX_TRIP_DAYS) {
+                    $events[$index]['date'] = $shifted->format('Y-m-d');
+                    break;
+                }
+            }
+        }
+
+        // Re-sorted because a repaired entry can land before ones already
+        // placed, and store() reports the first date of what it wrote.
+        usort($events, fn (array $a, array $b) => [$a['date'], $a['time'] ?? ''] <=> [$b['date'], $b['time'] ?? '']);
+
+        return $events;
     }
 
     /**
@@ -54,34 +118,112 @@ class ItineraryPlanWriter
     public function store(array $events, string $planTitle, int $userId): array
     {
         $title = $this->text($planTitle, 120);
-        $created = 0;
-        $firstDate = null;
+        $dates = array_values(array_unique(array_column($events, 'date')));
 
-        foreach ($events as $row) {
-            ItineraryEvent::create([
-                'user_id' => $userId,
-                'trip_id' => null,
-                'order_id' => null,
-                'source' => ItineraryEvent::SOURCE_AI,
-                'category' => $row['category'],
-                'title' => $row['title'],
-                'location' => $row['location'],
-                'event_date' => $row['date'],
-                'start_time' => $row['time'],
-                // Ties the entry back to the plan it came from, so a day
-                // panel showing several plans stays readable.
-                'notes' => $title !== '' ? "Planned: {$title}" : null,
-            ]);
+        return DB::transaction(function () use ($events, $title, $userId, $dates) {
+            // Replanning a day replaces it. Appending produced a day
+            // holding two plans at once - the discarded one and the new
+            // one interleaved by time - which reads as one incoherent
+            // itinerary rather than a revision.
+            //
+            // Scoped to source = 'ai': booking entries are backed by a paid
+            // order, so the planner has no business deleting them.
+            // whereDate(), not whereIn(): the column holds a full datetime
+            // ("2026-09-12 00:00:00"), so matching it against a bare
+            // "2026-09-12" deletes nothing and the day silently appends
+            // instead of being replaced.
+            $replaced = ItineraryEvent::query()
+                ->where('user_id', $userId)
+                ->where('source', ItineraryEvent::SOURCE_AI)
+                ->where(function ($query) use ($dates) {
+                    foreach ($dates as $date) {
+                        $query->orWhereDate('event_date', $date);
+                    }
+                })
+                ->delete();
 
-            $date = CarbonImmutable::parse($row['date']);
-            if ($firstDate === null || $date->lt($firstDate)) {
-                $firstDate = $date;
+            $created = 0;
+            $skipped = 0;
+            $firstDate = null;
+            $written = [];
+
+            // Days that already carry a booked flight. The prompt tells the
+            // model not to invent a second one, and it does anyway - so the
+            // rule is enforced here as well. A duplicated flight is the
+            // worst kind of wrong entry: two departure times for the same
+            // journey, one of them fictional.
+            $bookedFlightDates = ItineraryEvent::query()
+                ->where('user_id', $userId)
+                ->where('source', ItineraryEvent::SOURCE_BOOKING)
+                ->where('category', 'flight')
+                ->where(function ($query) use ($dates) {
+                    foreach ($dates as $date) {
+                        $query->orWhereDate('event_date', $date);
+                    }
+                })
+                ->pluck('event_date')
+                ->map(fn ($date) => CarbonImmutable::parse($date)->toDateString())
+                ->all();
+
+            foreach ($events as $row) {
+                if ($row['category'] === 'flight' && in_array($row['date'], $bookedFlightDates, true)) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                // Checked after the day is cleared, so a replan only has to
+                // avoid the bookings that survived and the entries this
+                // same plan has already placed.
+                $clash = $this->schedule->conflict(
+                    $userId, $row['date'], $row['time'], $row['end'] ?? null,
+                    alsoBooked: $written,
+                );
+
+                if ($clash !== null) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                ItineraryEvent::create([
+                    'user_id' => $userId,
+                    'trip_id' => null,
+                    'order_id' => null,
+                    'source' => ItineraryEvent::SOURCE_AI,
+                    'category' => $row['category'],
+                    'title' => $row['title'],
+                    'location' => $row['location'],
+                    'event_date' => $row['date'],
+                    'start_time' => $row['time'],
+                    'end_time' => $row['end'] ?? null,
+                    // Ties the entry back to the plan it came from, so a day
+                    // panel showing several plans stays readable.
+                    'notes' => $title !== '' ? "Planned: {$title}" : null,
+                ]);
+
+                $written[] = [
+                    'date' => $row['date'],
+                    'time' => $row['time'],
+                    'end' => $row['end'] ?? null,
+                    'title' => $row['title'],
+                ];
+
+                $date = CarbonImmutable::parse($row['date']);
+                if ($firstDate === null || $date->lt($firstDate)) {
+                    $firstDate = $date;
+                }
+
+                $created++;
             }
 
-            $created++;
-        }
-
-        return ['created' => $created, 'first_date' => $firstDate];
+            return [
+                'created' => $created,
+                'skipped' => $skipped,
+                'replaced' => $replaced,
+                'first_date' => $firstDate,
+            ];
+        });
     }
 
     /**
@@ -102,6 +244,7 @@ class ItineraryPlanWriter
         return [
             'date' => $date,
             'time' => $this->time($event['time'] ?? null),
+            'end' => $this->time($event['end_time'] ?? $event['end'] ?? null),
             // Falls back rather than rejecting: an unexpected category is
             // a colour problem, not a reason to lose the entry.
             'category' => in_array($category, ItineraryPlanner::CATEGORIES, true) ? $category : 'activity',

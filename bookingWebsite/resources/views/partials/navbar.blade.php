@@ -37,7 +37,7 @@
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
                     {{-- No My Bookings entry here: the main nav already links
                          to it, so a second copy in the dropdown is redundant. --}}
-                    <li><a class="dropdown-item" href="{{ url('/account') }}"><i class="bi bi-person me-2"></i>My Account</a></li>
+                    <li><a class="dropdown-item {{ request()->routeIs('account.*') ? 'active' : '' }}" href="{{ route('account.edit') }}"><i class="bi bi-person me-2"></i>My Account</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <form method="POST" action="{{ route('logout') }}">

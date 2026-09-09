@@ -8,6 +8,7 @@ use App\Models\Hotel;
 use App\Models\ItineraryEvent;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Support\Airports;
 use Carbon\CarbonImmutable;
 
 /**
@@ -55,9 +56,16 @@ class BookingItinerary
                 'source' => ItineraryEvent::SOURCE_BOOKING,
                 'category' => $resolved['category'],
                 'title' => $item->title,
-                'location' => $item->meta,
+                // Flights carry the route rather than the raw meta string:
+                // the codes are what let the calendar say which zone the
+                // time belongs to, and the times were already in meta twice.
+                'location' => $resolved['location'] ?? $item->meta,
                 'event_date' => $resolved['date'],
                 'start_time' => $resolved['time'],
+                // The zone the stored time is local to. A departure is
+                // local to its origin airport, which is the one case where
+                // the entry's time and the day's city disagree.
+                'timezone' => $resolved['timezone'],
                 'notes' => "Booking {$order->reference}",
             ]);
 
@@ -74,7 +82,7 @@ class BookingItinerary
      * is looked up, since that belongs to the product rather than the
      * booking.
      *
-     * @return array{date: string, time: ?string, category: string}
+     * @return array{date: string, time: ?string, category: string, timezone: ?string}
      */
     protected function resolveItem(OrderItem $item, Order $order): array
     {
@@ -84,11 +92,45 @@ class BookingItinerary
             ?? CarbonImmutable::parse($order->created_at)->toDateString();
 
         return match ($item->type) {
-            'flight' => ['date' => $date, 'time' => $this->flightTime($item), 'category' => 'flight'],
-            'hotel' => ['date' => $date, 'time' => $this->hotelTime($item), 'category' => 'hotel'],
-            'attraction' => ['date' => $date, 'time' => $this->attractionTime($item), 'category' => 'activity'],
-            default => ['date' => $date, 'time' => null, 'category' => 'activity'],
+            'flight' => [
+                'date' => $date,
+                'time' => $this->flightTime($item),
+                'category' => 'flight',
+                'timezone' => $this->flightZone($item),
+                'location' => $this->flightRoute($item) ?? $item->meta,
+            ],
+            'hotel' => ['date' => $date, 'time' => $this->hotelTime($item), 'category' => 'hotel', 'timezone' => null],
+            'attraction' => ['date' => $date, 'time' => $this->attractionTime($item), 'category' => 'activity', 'timezone' => null],
+            default => ['date' => $date, 'time' => null, 'category' => 'activity', 'timezone' => null],
         };
+    }
+
+    /**
+     * The route as text, e.g. "Qatar Airways - New York (JFK) to Doha (DOH)".
+     *
+     * The codes are load-bearing, not decoration: the calendar reads them
+     * back to work out which zone a departure time is in and what the same
+     * moment is at the far end.
+     */
+    protected function flightRoute(OrderItem $item): ?string
+    {
+        $flight = Flight::find($item->item_id);
+
+        if ($flight === null) {
+            return null;
+        }
+
+        return trim(($flight->airline_name ? $flight->airline_name.' - ' : '')
+            ."{$flight->origin_city} ({$flight->origin_code}) to "
+            ."{$flight->destination_city} ({$flight->destination_code})");
+    }
+
+    /** The zone a flight's departure time is stated in. */
+    protected function flightZone(OrderItem $item): ?string
+    {
+        $flight = Flight::find($item->item_id);
+
+        return $flight?->origin_timezone ?? Airports::zone($flight?->origin_code);
     }
 
     protected function flightTime(OrderItem $item): ?string

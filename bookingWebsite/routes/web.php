@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\ChatController;
@@ -42,6 +43,16 @@ Route::middleware(['auth', 'throttle:20,1'])->group(function () {
     Route::post('/ai-planner/plan/confirm', [ItineraryController::class, 'confirmPlan'])->name('itinerary.plan.confirm');
 });
 
+// Hand-authored calendar entries. Auth only, no model-call throttle -
+// these are ordinary writes, not inference.
+Route::middleware('auth')->group(function () {
+    Route::post('/ai-planner/events', [ItineraryController::class, 'storeEvent'])->name('itinerary.events.store');
+    Route::delete('/ai-planner/events/{event}', [ItineraryController::class, 'destroyEvent'])->name('itinerary.events.destroy');
+    // POST rather than DELETE: the scope arrives as a body, and bodies on
+    // DELETE are poorly supported end to end.
+    Route::post('/ai-planner/events/clear', [ItineraryController::class, 'clearEvents'])->name('itinerary.events.clear');
+});
+
 // ---------- Cart ----------
 // Open to guests: browsing and gathering a cart needs no account. The
 // cart lives in the session, so it survives signing in and is still
@@ -77,4 +88,11 @@ Route::middleware('guest')->group(function () {
  
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+    // ---------- Account settings ----------
+    // The navbar dropdown has always linked here; these are the routes
+    // behind that link.
+    Route::get('/account', [AccountController::class, 'edit'])->name('account.edit');
+    Route::put('/account/profile', [AccountController::class, 'updateProfile'])->name('account.profile.update');
+    Route::put('/account/password', [AccountController::class, 'updatePassword'])->name('account.password.update');
 });

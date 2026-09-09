@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Ai\Agents\ItineraryPlanner;
 use App\Models\ItineraryEvent;
 use App\Models\Order;
+use App\Services\BookingContext;
 use App\Services\ItineraryPlanWriter;
+use App\Services\ItinerarySchedule;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -151,11 +153,36 @@ class ItineraryController extends Controller
         ]);
 
         return response()->json([
-            'reply' => $reply,
+            // Never empty: the summary is the model's, and a model that
+            // skipped the field would otherwise send a blank reply that the
+            // planner panel renders as "something went wrong" - reporting a
+            // plan that built perfectly well as a failure.
+            'reply' => $reply !== '' ? $reply : $this->describePlan($plan, $events),
             'awaiting_confirmation' => true,
             'preview' => $this->previewLines($events),
             'count' => count($events),
         ]);
+    }
+
+    /**
+     * A summary built from the plan itself, for when the model didn't
+     * write one.
+     *
+     * Says only what the entries prove - how many, where, and when they
+     * start - rather than inventing the flavour text the model omitted.
+     *
+     * @param  array<string, mixed>  $plan
+     * @param  list<array{date: string, ...}>  $events
+     */
+    protected function describePlan(array $plan, array $events): string
+    {
+        $count = count($events);
+        $destination = trim((string) ($plan['destination'] ?? ''));
+        $start = CarbonImmutable::parse(min(array_column($events, 'date')));
+
+        return "Here's a {$count}-entry plan"
+            .($destination !== '' ? " for {$destination}" : '')
+            .', starting '.$start->format('j M Y').'.';
     }
 
     /**
@@ -182,8 +209,7 @@ class ItineraryController extends Controller
         $count = $result['created'];
 
         return response()->json([
-            'reply' => "Added {$count} ".($count === 1 ? 'entry' : 'entries').' to your calendar'
-                .($result['first_date'] ? ', starting '.$result['first_date']->format('j M Y').'.' : '.'),
+            'reply' => $this->storedReply($result),
             'created' => $count,
             // Where the calendar should jump to so the new dots are visible.
             'month' => $result['first_date']?->format('Y-m'),
@@ -216,15 +242,24 @@ class ItineraryController extends Controller
      */
     protected function composePrompt(array $turns, string $message): string
     {
+        // What the traveller has already paid for. Prepended to every
+        // prompt, first turn included: the fixed points of a trip are
+        // context the model needs before it plans anything, not something
+        // that only matters once a conversation is under way.
+        $bookings = app(BookingContext::class)->forPrompt(auth()->id());
+        $prefix = $bookings !== '' ? $bookings."
+
+" : '';
+
         if ($turns === []) {
-            return $message;
+            return $prefix.$message;
         }
 
         $history = collect($turns)
             ->map(fn (array $t) => "User: {$t['user']}\nPlanner: {$t['planner']}")
             ->implode("\n");
 
-        return "Conversation so far:\n{$history}\n\nUser's latest message: {$message}\n\n"
+        return $prefix."Conversation so far:\n{$history}\n\nUser's latest message: {$message}\n\n"
             .'Build the plan using everything above. Details given earlier still apply — '
             .'do not ask again for something the user has already told you. If the latest '
             .'message only changes one detail (a date, a length, a preference), rebuild the '
@@ -278,6 +313,210 @@ class ItineraryController extends Controller
      * approved it, the money moves within 48 hours, and the final timing
      * belongs to whoever holds it (see the FAQ).
      */
+    /**
+     * Adds one activity by hand.
+     *
+     * Manual entries are source = 'ai' like planned ones: both are things
+     * the user intends to do rather than things they have paid for, and
+     * the calendar's two-way split is planned vs booked, not authored-by-
+     * whom.
+     */
+    public function storeEvent(Request $request, ItinerarySchedule $schedule): JsonResponse
+    {
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:191'],
+            'event_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
+            'start_time' => ['nullable', 'date_format:H:i'],
+            // Optional. When given it must follow the start; without a
+            // start it is ignored, since an end alone bounds nothing.
+            'end_time' => ['nullable', 'date_format:H:i', 'after:start_time'],
+            'location' => ['nullable', 'string', 'max:191'],
+            'category' => ['required', 'string', 'in:'.implode(',', ItineraryPlanner::CATEGORIES)],
+        ]);
+
+        $clash = $schedule->conflict(
+            (int) auth()->id(),
+            $data['event_date'],
+            $data['start_time'] ?? null,
+            $data['end_time'] ?? null,
+        );
+
+        if ($clash !== null) {
+            // 422 so the form shows it inline: this is the user's input
+            // being wrong for this day, not a server failure.
+            return response()->json([
+                'message' => "That time clashes with \"{$clash}\". Pick a different time, or leave the time empty for an all-day entry.",
+            ], 422);
+        }
+
+        $event = ItineraryEvent::create([
+            'user_id' => auth()->id(),
+            'trip_id' => null,
+            'order_id' => null,
+            'source' => ItineraryEvent::SOURCE_AI,
+            'category' => $data['category'],
+            'title' => $data['title'],
+            'location' => $data['location'] ?? null,
+            'event_date' => $data['event_date'],
+            'start_time' => $data['start_time'] ?? null,
+            'end_time' => $data['end_time'] ?? null,
+            'notes' => 'Added by you',
+        ]);
+
+        return response()->json([
+            'message' => 'Added to your calendar.',
+            'id' => $event->id,
+            'date' => $data['event_date'],
+        ], 201);
+    }
+
+    /**
+     * Clears planned activities in bulk.
+     *
+     * Four scopes, narrowest first: named entries, one day, a span of
+     * days, or everything planned. They exist because deleting a
+     * fortnight's itinerary one trash icon at a time is not a workflow.
+     *
+     * Two rules hold across all of them:
+     *
+     *   - Only source = 'ai' rows are touched. Bookings mirror paid orders
+     *     and are never removed here, however wide the scope.
+     *   - Everything is scoped to the signed-in user, so a date range can
+     *     never reach another account's calendar.
+     *
+     * `dry_run` returns the count without deleting, so the confirmation can
+     * state exactly how many entries are about to go. The count and the
+     * delete use the same query, so the number shown is the number removed.
+     */
+    public function clearEvents(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'scope' => ['required', 'in:selected,day,range,all'],
+            'ids' => ['required_if:scope,selected', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+            'date' => ['required_if:scope,day', 'date_format:Y-m-d'],
+            'from' => ['required_if:scope,range', 'date_format:Y-m-d'],
+            'to' => ['required_if:scope,range', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'dry_run' => ['boolean'],
+        ]);
+
+        $query = ItineraryEvent::query()
+            ->where('user_id', auth()->id())
+            ->where('source', ItineraryEvent::SOURCE_AI);
+
+        // whereDate throughout: event_date carries a time component, so a
+        // bare string comparison would miss the boundary days.
+        match ($data['scope']) {
+            'selected' => $query->whereIn('id', $data['ids']),
+            'day' => $query->whereDate('event_date', $data['date']),
+            'range' => $query
+                ->whereDate('event_date', '>=', $data['from'])
+                ->whereDate('event_date', '<=', $data['to']),
+            'all' => null,
+        };
+
+        $count = (clone $query)->count();
+
+        if ($request->boolean('dry_run')) {
+            return response()->json([
+                'count' => $count,
+                'message' => $this->clearSummary($data, $count),
+            ]);
+        }
+
+        $query->delete();
+
+        return response()->json([
+            'count' => $count,
+            'message' => $count === 0
+                ? 'There was nothing planned to clear.'
+                : "Removed {$count} planned ".($count === 1 ? 'entry' : 'entries').'.',
+        ]);
+    }
+
+    /**
+     * The sentence shown before anything is deleted. Names the scope in the
+     * user's own terms so a mis-aimed "clear everything" is obvious while
+     * it can still be cancelled.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function clearSummary(array $data, int $count): string
+    {
+        if ($count === 0) {
+            return 'There is nothing planned to clear.';
+        }
+
+        $entries = $count.' planned '.($count === 1 ? 'entry' : 'entries');
+
+        return match ($data['scope']) {
+            'selected' => "Remove the {$entries} you selected?",
+            'day' => "Remove {$entries} on ".CarbonImmutable::parse($data['date'])->format('j M Y').'?',
+            'range' => "Remove {$entries} between "
+                .CarbonImmutable::parse($data['from'])->format('j M Y').' and '
+                .CarbonImmutable::parse($data['to'])->format('j M Y').'?',
+            'all' => "Remove all {$entries} from your calendar? This covers every date, not just this month.",
+        }.' Bookings are never removed.';
+    }
+
+    /**
+     * Deletes one planned activity.
+     *
+     * Booking entries are refused: they mirror a paid order, so removing
+     * one here would leave the calendar disagreeing with what was actually
+     * bought. Cancelling a booking is what refund() is for.
+     */
+    public function destroyEvent(ItineraryEvent $event): JsonResponse
+    {
+        // Ownership before existence: a 404 rather than a 403 so this
+        // can't be used to probe whether an id belongs to someone else.
+        if ((int) $event->user_id !== (int) auth()->id()) {
+            abort(404);
+        }
+
+        if ($event->isBooking()) {
+            return response()->json([
+                'message' => "That's a booking, not a planned activity — cancel it from My Bookings instead.",
+            ], 422);
+        }
+
+        $event->delete();
+
+        return response()->json(['message' => 'Activity removed.']);
+    }
+
+    /**
+     * The sentence shown after a plan is committed.
+     *
+     * Says what actually happened to the calendar rather than only what
+     * was added: a replan silently wiping the previous day's entries, or
+     * quietly dropping half a plan for clashing, is the kind of thing a
+     * user should hear about rather than discover.
+     */
+    protected function storedReply(array $result): string
+    {
+        $count = $result['created'];
+
+        if ($count === 0) {
+            return 'Nothing was added — every entry clashed with something already on those days.';
+        }
+
+        $reply = "Added {$count} ".($count === 1 ? 'entry' : 'entries').' to your calendar'
+            .($result['first_date'] ? ', starting '.$result['first_date']->format('j M Y').'.' : '.');
+
+        if (($result['replaced'] ?? 0) > 0) {
+            $replaced = $result['replaced'];
+            $reply .= " Replaced {$replaced} previously planned ".($replaced === 1 ? 'entry' : 'entries').' on those days.';
+        }
+
+        if (($result['skipped'] ?? 0) > 0) {
+            $skipped = $result['skipped'];
+            $reply .= " Skipped {$skipped} that clashed with existing ".($skipped === 1 ? 'entry' : 'entries').'.';
+        }
+
+        return $reply;
+    }
+
     public function refund(Request $request, Order $order)
     {
         // Ownership, not just authentication: without this, any signed-in
@@ -364,9 +603,14 @@ class ItineraryController extends Controller
             return collect();
         }
 
+        // whereDate, not whereBetween: event_date holds a full datetime
+        // ("2026-09-30 00:00:00"), and as a string that sorts after the
+        // bare "2026-09-30" upper bound - so a plain BETWEEN drops the
+        // last day of every month from the calendar.
         return ItineraryEvent::query()
             ->where('user_id', auth()->id())
-            ->whereBetween('event_date', [$month->toDateString(), $month->endOfMonth()->toDateString()])
+            ->whereDate('event_date', '>=', $month->toDateString())
+            ->whereDate('event_date', '<=', $month->endOfMonth()->toDateString())
             ->orderBy('event_date')
             ->orderByRaw('start_time IS NULL, start_time')
             ->get();
