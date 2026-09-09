@@ -612,8 +612,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const emailInput = document.getElementById('customer_email');
     const form = document.getElementById('checkoutForm');
 
-    /** How long the mock "payment received" takes to arrive. */
-    const DETECT_DELAY_MS = 5000;
+    /**
+     * How long the mock "payment received" takes to arrive. Long enough to
+     * read the QR panel and talk through it during a demo before the page
+     * submits itself; the Simulate button skips the wait when testing.
+     */
+    const DETECT_DELAY_MS = 15000;
     let detectTimer = null;
 
     // ----- Payment method -----

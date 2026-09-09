@@ -20,9 +20,9 @@ class CheckoutController extends Controller
      * the layout doesn't shift when the real images arrive.
      */
     public const WALLETS = [
-        'tng' => ['name' => 'TnG eWallet', 'tagline' => 'Touch \'n Go', 'icon' => 'bi-wallet2', 'qr' => 'images/wallets/tng-qr.png'],
-        'boost' => ['name' => 'Boost', 'tagline' => 'Boost eWallet', 'icon' => 'bi-lightning-charge', 'qr' => 'images/wallets/boost-qr.png'],
-        'duitnow' => ['name' => 'DuitNow', 'tagline' => 'DuitNow QR', 'icon' => 'bi-qr-code', 'qr' => 'images/wallets/duitnow-qr.png'],
+        'tng' => ['name' => 'TnG eWallet', 'tagline' => 'Touch \'n Go', 'icon' => 'bi-wallet2', 'qr' => 'images/wallets/tng-qr.jpg'],
+        'boost' => ['name' => 'Boost', 'tagline' => 'Boost eWallet', 'icon' => 'bi-lightning-charge', 'qr' => 'images/wallets/boost-qr.jpg'],
+        'duitnow' => ['name' => 'DuitNow', 'tagline' => 'DuitNow QR', 'icon' => 'bi-qr-code', 'qr' => 'images/wallets/duitnow-qr.jpg'],
     ];
 
     public function __construct(
