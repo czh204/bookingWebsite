@@ -65,10 +65,27 @@ window.Voyagr.addToCart = function (payload, button) {
             window.Voyagr.updateCartBadge(result.body.count);
             button.innerHTML = 'Added <i class="bi bi-check-lg"></i>';
 
-            setTimeout(function () {
+            const restore = function () {
                 button.innerHTML = original;
                 button.disabled = false;
-            }, 1500);
+            };
+
+            const modalEl = button.closest('.modal');
+
+            if (!modalEl) {
+                setTimeout(restore, 1500);
+                return;
+            }
+
+            // The item is in the cart, so the modal has nothing left to do -
+            // close it. The button is restored on hide rather than on a timer
+            // so reopening the modal never shows a stale "Added" state, and
+            // the short delay lets the checkmark register first.
+            modalEl.addEventListener('hidden.bs.modal', restore, { once: true });
+
+            setTimeout(function () {
+                (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide();
+            }, 600);
         })
         .catch(function (error) {
             button.innerHTML = original;

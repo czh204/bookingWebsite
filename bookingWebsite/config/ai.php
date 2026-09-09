@@ -23,6 +23,28 @@ return [
      */
     'agent_model' => env('AI_MODEL'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Ollama Tuning
+    |--------------------------------------------------------------------------
+    |
+    | num_ctx is the context window a request runs in. Ollama defaults it to
+    | 4096 no matter what the model supports, and the prompt, the model's
+    | reasoning and the generated JSON all have to fit inside it - so a long
+    | itinerary silently runs out of room. Raise it to plan longer trips;
+    | the cost is memory on the Ollama host, which grows with the window.
+    |
+    | think = false turns off a reasoning model's visible deliberation. The
+    | planner returns a fixed JSON schema, so the reasoning is never shown,
+    | and switching it off buys back both latency and context.
+    |
+    */
+
+    'ollama' => [
+        'num_ctx' => (int) env('OLLAMA_NUM_CTX', 16384),
+        'think' => (bool) env('OLLAMA_THINK', false),
+    ],
+
     'default_for_images' => 'gemini',
     'default_for_audio' => 'openai',
     'default_for_transcription' => 'openai',
